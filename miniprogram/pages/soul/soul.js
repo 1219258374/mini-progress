@@ -12,6 +12,7 @@ let currentMode = 'NEBULA';
 const particleCount = 2000;
 let positions, velocities, colors, orbitRadii, phase;
 let reqId;
+let gravity = { x: 0, y: 0 };
 
 Page({
   data: {
@@ -31,6 +32,19 @@ Page({
       const node = res[0].node;
       this._initWebGL(node);
     });
+
+    // Start listening to Accelerometer for Gravity Effect (Interval: ui = ~16ms)
+    wx.startAccelerometer({
+      interval: 'ui',
+      success: () => {
+        wx.onAccelerometerChange((res) => {
+          // Flattening real-world 3D gravity into our 2D screen coordinate system
+          // res.x is left-right (-1 to 1), res.y is bottom-top (-1 to 1)
+          gravity.x = res.x * 0.15; 
+          gravity.y = res.y * 0.15;
+        });
+      }
+    });
   },
 
   onUnload() {
@@ -41,6 +55,8 @@ Page({
       renderer.domElement = null;
       renderer = null;
     }
+    wx.stopAccelerometer();
+    wx.offAccelerometerChange();
     THREE = null;
   },
 
@@ -192,6 +208,10 @@ Page({
         velocities[ix] += dx * pull;
         velocities[iy] += dy * pull;
       }
+
+      // Apply universal gravity from accelerometer
+      velocities[ix] += gravity.x;
+      velocities[iy] -= gravity.y; // Invert Y because screen space Y is opposite to physical accel Y
 
       velocities[ix] *= 0.94; velocities[iy] *= 0.94;
       posAttr.array[ix] += velocities[ix]; posAttr.array[iy] += velocities[iy];

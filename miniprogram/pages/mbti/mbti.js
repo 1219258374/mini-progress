@@ -23,6 +23,7 @@ let THREE;
 let canvas;
 let scene, camera, renderer, crystal;
 let scaleTarget = 1.0, rotSpeed = 0.003;
+let deviceMotion = { beta: 0, gamma: 0 };
 
 Page({
   data: {
@@ -42,7 +43,18 @@ Page({
     wx.createSelectorQuery().select('#webgl').node().exec((res) => {
       const node = res[0].node
       this._initWebGL(node)
-    })
+    });
+    
+    // Start listening to device motion for Gyro Parallax Effect
+    wx.startDeviceMotionListening({
+      interval: 'ui',
+      success: () => {
+        wx.onDeviceMotionChange((res) => {
+          deviceMotion.beta = res.beta;
+          deviceMotion.gamma = res.gamma;
+        });
+      }
+    });
   },
 
   onUnload() {
@@ -52,6 +64,8 @@ Page({
       renderer.domElement = null
       renderer = null
     }
+    wx.stopDeviceMotionListening();
+    wx.offDeviceMotionChange();
     THREE = null;
   },
 
@@ -86,8 +100,19 @@ Page({
     const render = () => {
       if (!renderer) return;
       canvas.requestAnimationFrame(render);
+      
+      // Auto rotation
       crystal.rotation.y += rotSpeed;
       crystal.rotation.z += rotSpeed * 0.3;
+      
+      // Gyro Parallax (Mapping Device Motion to camera/crystal offset)
+      const targetRotX = deviceMotion.beta ? (deviceMotion.beta * Math.PI / 180) * 0.5 : 0;
+      const targetRotY = deviceMotion.gamma ? (deviceMotion.gamma * Math.PI / 180) * 0.5 : 0;
+      crystal.rotation.x += (targetRotX - crystal.rotation.x) * 0.1;
+      camera.position.x += (targetRotY * 2 - camera.position.x) * 0.1;
+      camera.position.y += (-targetRotX * 2 - camera.position.y) * 0.1;
+      camera.lookAt(scene.position);
+
       const currentS = crystal.scale.x;
       const lerpS = currentS + (scaleTarget - currentS) * 0.1;
       crystal.scale.setScalar(lerpS + Math.sin(Date.now() * 0.002) * 0.05);
