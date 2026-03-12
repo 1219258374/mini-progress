@@ -17,11 +17,16 @@ Page({
   data: {
     currentMode: 'NEBULA',
     progNum: 0,
+    energy: 0,
     showDiag: false,
     resId: ''
   },
 
-  onReady() {
+  onLoad(options) {
+    mouse = { x: 0, y: 0 };
+    target = { x: 0, y: 0 };
+    energy = 0;
+    isInteracting = false;
     wx.createSelectorQuery().select('#webgl').node().exec((res) => {
       const node = res[0].node;
       this._initWebGL(node);
@@ -44,7 +49,33 @@ Page({
     // Creating a procedural soft circle using a basic canvas context isn't directly supported by threejs-miniprogram without explicit adapter bridges. 
     // To ensure 100% stability, we'll rely on blending modes and dot representations natively.
     // Particle size attenuation + additive blending gives a solid alternative.
-    return null;
+    const size = 64;
+    const data = new Uint8Array(size * size * 4);
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const dx = x - 32;
+        const dy = y - 32;
+        const dist = Math.sqrt(dx * dx + dy * dy) / 32;
+        let r = 0, g = 0, b = 0, a = 0;
+        if (dist <= 1) {
+          if (dist <= 0.1) {
+            const t = dist / 0.1;
+            r = 255 + t * (100 - 255); g = 255 + t * (200 - 255); b = 255; a = 1.0 + t * (0.8 - 1.0);
+          } else if (dist <= 0.3) {
+            const t = (dist - 0.1) / 0.2;
+            r = 100 + t * (0 - 100); g = 200 + t * (100 - 200); b = 255; a = 0.8 + t * (0.2 - 0.8);
+          } else {
+            const t = (dist - 0.3) / 0.7;
+            r = 0; g = 100 + t * (0 - 100); b = 255 + t * (0 - 255); a = 0.2 + t * (0.0 - 0.2);
+          }
+        }
+        const i = (y * size + x) * 4;
+        data[i] = r; data[i+1] = g; data[i+2] = b; data[i+3] = a * 255;
+      }
+    }
+    const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+    tex.needsUpdate = true;
+    return tex;
   },
 
   _initWebGL(node) {
@@ -82,7 +113,8 @@ Page({
     geometry.addAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     const material = new THREE.PointsMaterial({
-      size: 0.15,
+      size: 0.18,
+      map: this._createTexture(),
       vertexColors: THREE.VertexColors,
       transparent: true,
       opacity: 0.8,

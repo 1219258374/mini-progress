@@ -26,7 +26,8 @@ let scaleTarget = 1.0, rotSpeed = 0.003;
 
 Page({
   data: {
-    step: 0, // 0: init gate, 1: loading, 2: config, 3: result
+    step: 2, // Start directly at step 2 (Config)
+    showUI: true, // 1: loading, 2: config, 3: result
     selectedMBTI: 'INTJ',
     selectedGroup: 'analyst',
     selectedVibe: 'FLOW',

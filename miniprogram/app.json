@@ -2,9 +2,7 @@
   "pages": [
     "pages/home/home",
     "pages/mbti/mbti",
-    "pages/soul/soul",
-    "pages/index/index",
-    "pages/example/index"
+    "pages/soul/soul"
   ],
   "window": {
     "backgroundColor": "#F6F6F6",
