@@ -1,6 +1,6 @@
 {
-  "navigationBarTitleText": "基础能力",
-  "usingComponents": {
-    "cloud-tip-modal": "/components/cloudTipModal/index"
-  }
+  "usingComponents": {},
+  "navigationBarTitleText": "YOROZUYA LAB",
+  "navigationBarBackgroundColor": "#020617",
+  "navigationBarTextStyle": "white"
 }

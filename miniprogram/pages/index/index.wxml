@@ -1,29 +1,37 @@
-<!--index.wxml-->
 <view class="container">
-  <view class="title">快速了解云开发</view>
-  <view class="top_tip">免鉴权接口调用 免部署后台 高并发</view>
-  <view class="power" wx:key="title" wx:for="{{powerList}}" wx:for-item="power">
-    <view class="power_info" data-index="{{index}}" data-type="{{ power.type }}" bindtap="onClickPowerInfo">
-      <view class="power_info_text">
-        <view class="power_info_text_title">
-          {{power.title}}
-          <view class="power_info_text_tag" wx:if="{{power.tag}}">{{power.tag}}</view>
-        </view>
-        <view class="power_info_text_tip">{{power.tip}}</view>
+  <!-- Glowing Background Orbs -->
+  <view class="bg-orb orb-1"></view>
+  <view class="bg-orb orb-2"></view>
+  <view class="bg-noise"></view>
+
+  <view class="header">
+    <view class="logo-text">YOROZUYA LAB</view>
+    <view class="subtitle">Select Your Laboratory</view>
+  </view>
+
+  <view class="cards-wrapper">
+    <!-- Card 1: MBTI -->
+    <view class="glass-card card-mbti" bindtap="goToMBTI" hover-class="card-hover">
+      <view class="card-icon">🧬</view>
+      <view class="card-content">
+        <text class="card-title">性格实验室 8.0</text>
+        <text class="card-desc">16-Personalities Comprehensive Synthesis</text>
       </view>
-      <image wx:if="{{!power.showItem && power.item.length}}" class="power_info_more" src="../../images/arrow.svg"></image>
-      <image wx:if="{{power.showItem && power.item.length}}" class="power_info_less" src="../../images/arrow.svg"></image>
-      <image wx:if="{{!power.item.length}}" class="power_item_icon" src="../../images/arrow.svg"></image>
+      <view class="card-arrow">→</view>
     </view>
-    <view wx:if="{{power.showItem}}">
-      <view wx:key="title" wx:for="{{power.item}}">
-        <view class="line"></view>
-        <view class="power_item" bindtap="jumpPage" data-type="{{ item.type }}" data-page="{{item.page}}">
-          <view class="power_item_title">{{item.title}}</view>
-          <image class="power_item_icon" src="../../images/arrow.svg"></image>
-        </view>
+
+    <!-- Card 2: Soul Fingerprint -->
+    <view class="glass-card card-soul" bindtap="goToSoul" hover-class="card-hover">
+      <view class="card-icon">💧</view>
+      <view class="card-content">
+        <text class="card-title">灵魂指纹实验室</text>
+        <text class="card-desc">Deep Blue Blueprint & Sync Scanner</text>
       </view>
+      <view class="card-arrow">→</view>
     </view>
   </view>
-  <cloud-tip-modal showTipProps="{{showTip}}" title="{{title}}" content="{{content}}"></cloud-tip-modal>
+
+  <view class="footer">
+    <text>Architect & Curator Synergy</text>
+  </view>
 </view>
