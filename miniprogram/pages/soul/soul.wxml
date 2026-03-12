@@ -1,1 +1,53 @@
-<web-view src="{{url}}"></web-view>
+<view class="container">
+  <!-- 基础 3D 渲染层 -->
+  <canvas type="webgl" id="webgl" style="width: 100%; height: 100vh; position: absolute; z-index: -1;" bindtouchstart="touchStart" bindtouchmove="touchMove" bindtouchend="touchEnd"></canvas>
+
+  <view class="ui-layer">
+    <!-- Top Info -->
+    <view class="top-info">
+      <view class="glass-pill outfit tracking-widest text-blue-400">BLUEPRINT // LAB V3.3</view>
+    </view>
+
+    <!-- 侧边主题：全蓝系 -->
+    <view class="theme-panel">
+      <view class="theme-item {{currentMode === 'NEBULA' ? 'active' : ''}}" style="color: #3b82f6; background: #3b82f6;" bindtap="setTheme" data-mode="NEBULA"></view>
+      <view class="theme-item {{currentMode === 'RIPPLE' ? 'active' : ''}}" style="color: #60a5fa; background: #60a5fa;" bindtap="setTheme" data-mode="RIPPLE"></view>
+      <view class="theme-item {{currentMode === 'SOLAR' ? 'active' : ''}}" style="color: #06b6d4; background: #06b6d4;" bindtap="setTheme" data-mode="SOLAR"></view>
+      <view class="theme-item locked" style="color: #1e3a8a; background: #1e3a8a;"></view>
+    </view>
+
+    <!-- 左下角进度 -->
+    <view class="scanner-corner">
+      <view class="prog-text-row">
+        <text class="prog-label">Syncing Frequency</text>
+        <text class="prog-num text-blue-400">{{progNum}}%</text>
+      </view>
+      <view class="energy-rail">
+        <view class="energy-bar" style="width: {{progNum}}%"></view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 左下角结果提示 -->
+  <view class="diag-layer" wx:if="{{showDiag}}">
+    <view class="report-card-mini">
+      <view class="diag-header">
+        <text class="res-id">ID: {{resId}}</text>
+        <view class="close-btn" bindtap="closeDiag">✕</view>
+      </view>
+      
+      <view class="diag-title-row">
+        <view class="diag-icon">💧</view>
+        <view class="diag-title">深海的静谧回响</view>
+      </view>
+
+      <view class="diag-desc">
+        “你的划动如潮汐般有规律。在这种深蓝的静谧中，你正在找回失去的秩序感。”
+      </view>
+
+      <button class="btn-pay-mini" bindtap="payUnlock">
+        解锁数字资产 (¥9.9)
+      </button>
+    </view>
+  </view>
+</view>
