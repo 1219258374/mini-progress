@@ -1,0 +1,4 @@
+/* mbti.wxss */
+page {
+  background-color: #020617;
+}

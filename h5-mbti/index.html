@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>万事屋计划 - 性格实验室 8.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;900&family=Noto+Serif+SC:wght@500;700&display=swap');
+        
+        :root {
+            --primary: #6366f1;
+            --accent: #38bdf8;
+            --bg: #020617;
+        }
+
+        body { 
+            margin: 0; background-color: var(--bg); color: #f8fafc; 
+            font-family: 'Inter', -apple-system, sans-serif; 
+            overflow: hidden; touch-action: none;
+        }
+
+        .serif { font-family: 'Noto Serif SC', serif; }
+        .outfit { font-family: 'Outfit', sans-serif; }
+
+        /* 高级毛玻璃 */
+        .glass {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(40px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 2rem;
+        }
+
+        /* 选项交互 */
+        .chip {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 10px;
+            cursor: pointer;
+            color: #94a3b8;
+        }
+        .chip.active { background: rgba(255, 255, 255, 0.1); transform: scale(1.05); color: white; border-color: var(--primary); }
+        .chip.active.analyst { border-color: #a855f7; box-shadow: 0 0 15px rgba(168, 85, 247, 0.3); }
+        .chip.active.diplomat { border-color: #10b981; box-shadow: 0 0 15px rgba(16, 185, 129, 0.3); }
+        .chip.active.sentinel { border-color: #3b82f6; box-shadow: 0 0 15px rgba(59, 130, 246, 0.3); }
+        .chip.active.explorer { border-color: #f59e0b; box-shadow: 0 0 15px rgba(245, 158, 11, 0.3); }
+
+        .synthesis-btn {
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            box-shadow: 0 10px 40px -10px rgba(99, 102, 241, 0.6);
+            transition: all 0.3s;
+        }
+
+        .page { display: none; width: 100%; height: 100%; flex-direction: column; align-items: center; justify-content: center; }
+        .page.active { display: flex; animation: pageIn 1s cubic-bezier(0.2, 1, 0.3, 1) forwards; }
+        @keyframes pageIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 加载动画 */
+        #loader {
+            display: none; position: fixed; inset: 0; z-index: 100;
+            background: radial-gradient(circle at center, #0B1120 0%, #020617 100%);
+            flex-direction: column; align-items: center; justify-content: center;
+        }
+
+        #audio-gate {
+            position: fixed; inset: 0; z-index: 1000;
+            background: rgba(2, 6, 23, 0.98);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            backdrop-filter: blur(20px);
+        }
+
+        /* 结果图标动效 */
+        .icon-vibe-GLITCH { animation: glitchIcon 0.2s infinite; opacity: 0.7; filter: contrast(200%); }
+        .icon-vibe-SPARK { animation: bounce 0.6s infinite; filter: drop-shadow(0 0 15px var(--accent)); }
+        .icon-vibe-VOID { opacity: 0.3; filter: grayscale(100%) blur(1px); }
+        .icon-vibe-FLOW { animation: float 3s ease-in-out infinite; }
+
+        @keyframes glitchIcon { 0% { transform: translate(2px,0); } 50% { transform: translate(-2px,0); } 100% { transform: translate(0,0); } }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        @keyframes bounce { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container" class="fixed inset-0 z-0"></div>
+
+    <!-- Step 0: 激活引擎 -->
+    <div id="audio-gate">
+        <div class="glass p-12 text-center space-y-6 max-w-xs">
+            <h2 class="outfit font-bold tracking-widest text-indigo-400">YOROZUYA LAB</h2>
+            <p class="text-[10px] text-slate-500 uppercase tracking-[0.3em]">Initialize Bio-Digital Engine</p>
+            <button class="synthesis-btn w-full py-4 rounded-full font-black text-xs tracking-widest uppercase" onclick="unlockAudio()">进入实验室</button>
+        </div>
+    </div>
+
+    <!-- 加载过程 -->
+    <div id="loader">
+        <div class="relative w-64 h-64 border border-white/5 rounded-full flex items-center justify-center">
+            <div id="loader-symbol" class="text-6xl animate-pulse">🧬</div>
+            <svg class="absolute inset-0 w-full h-full rotate-[-90deg]">
+                <circle cx="128" cy="128" r="120" fill="none" stroke="rgba(99,102,241,0.1)" stroke-width="1" />
+                <circle id="progress-circle" cx="128" cy="128" r="120" fill="none" stroke="var(--primary)" stroke-width="4" stroke-dasharray="754" stroke-dashoffset="754" style="transition: stroke-dashoffset 3s linear;" />
+            </svg>
+        </div>
+        <p id="loader-msg" class="text-[10px] mt-12 outfit tracking-[0.5em] text-indigo-400 font-bold uppercase">Mapping Neural Paths...</p>
+    </div>
+
+    <div class="relative z-10 h-screen w-full flex flex-col justify-between p-6 md:p-12 text-center">
+        
+        <header class="pt-4 opacity-30 flex flex-col items-center">
+            <div class="text-[9px] outfit tracking-[0.6em] font-black uppercase text-indigo-400">Personality Evolution // Ver. 8.0</div>
+            <div class="w-10 h-[1px] bg-white/20 mt-2"></div>
+        </header>
+
+        <!-- 配置页 -->
+        <div id="page-config" class="page active space-y-8">
+            <div class="space-y-1">
+                <h1 class="text-4xl serif font-bold tracking-tight">灵魂标本全量库</h1>
+                <p class="text-[9px] outfit tracking-[0.3em] uppercase text-slate-500">16-Personalities Comprehensive Synthesis</p>
+            </div>
+
+            <div class="glass p-6 w-full max-w-md space-y-6 overflow-y-auto no-scrollbar max-h-[60vh]">
+                <!-- MBTI Matrix -->
+                <div class="space-y-4">
+                    <p class="text-[8px] outfit text-indigo-500 font-black uppercase text-left tracking-widest">01. Choose Identity Gene</p>
+                    <div class="space-y-2">
+                        <div class="grid grid-cols-4 gap-2">
+                            <button class="chip py-3 rounded-xl font-black active" onclick="setMBTI('INTJ', 'analyst', this)">INTJ</button>
+                            <button class="chip py-3 rounded-xl font-black" onclick="setMBTI('INTP', 'analyst', this)">INTP</button>
+                            <button class="chip py-3 rounded-xl font-black" onclick="setMBTI('ENTJ', 'analyst', this)">ENTJ</button>
+                            <button class="chip py-3 rounded-xl font-black" onclick="setMBTI('ENTP', 'analyst', this)">ENTP</button>
+                        </div>
+                        <div class="grid grid-cols-4 gap-2">
+                            <button class="chip py-3 rounded-xl font-black" onclick="setMBTI('INFJ', 'diplomat', this)">INFJ</button>
+                            <button class="chip py-3 rounded-xl font-black" onclick="setMBTI('INFP', 'diplomat', this)">INFP</button>
+                            <button class="chip py-3 rounded-xl font-black" onclick="setMBTI('ENFJ', 'diplomat', this)">ENFJ</button>
+                            <button class="chip py-3 rounded-xl font-black" onclick="setMBTI('ENFP', 'diplomat', this)">ENFP</button>
+                        </div>
+                        <div class="grid grid-cols-4 gap-2">
+                            <button class="chip py-3 rounded-xl font-black" onclick="setMBTI('ISTJ', 'sentinel', this)">ISTJ</button>
+                            <button class="chip py-3 rounded-xl font-black" onclick="setMBTI('ISFJ', 'sentinel', this)">ISFJ</button>
+                            <button class="chip py-3 rounded-xl font-black" onclick="setMBTI('ESTJ', 'sentinel', this)">ESTJ</button>
+                            <button class="chip py-3 rounded-xl font-black" onclick="setMBTI('ESFJ', 'sentinel', this)">ESFJ</button>
+                        </div>
+                        <div class="grid grid-cols-4 gap-2">
+                            <button class="chip py-3 rounded-xl font-black" onclick="setMBTI('ISTP', 'explorer', this)">ISTP</button>
+                            <button class="chip py-3 rounded-xl font-black" onclick="setMBTI('ISFP', 'explorer', this)">ISFP</button>
+                            <button class="chip py-3 rounded-xl font-black" onclick="setMBTI('ESTP', 'explorer', this)">ESTP</button>
+                            <button class="chip py-3 rounded-xl font-black" onclick="setMBTI('ESFP', 'explorer', this)">ESFP</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mood Vibe -->
+                <div class="space-y-4 pt-4 border-t border-white/5">
+                    <p class="text-[8px] outfit text-sky-500 font-black uppercase text-left tracking-widest">02. Choose Emotional Vibe</p>
+                    <div class="grid grid-cols-4 gap-3">
+                        <button class="chip mood py-4 rounded-2xl font-bold active" onclick="setVibe('FLOW', this)">平静</button>
+                        <button class="chip mood py-4 rounded-2xl font-bold" onclick="setVibe('GLITCH', this)">焦虑</button>
+                        <button class="chip mood py-4 rounded-2xl font-bold" onclick="setVibe('SPARK', this)">兴奋</button>
+                        <button class="chip mood py-4 rounded-2xl font-bold" onclick="setVibe('VOID', this)">空虚</button>
+                    </div>
+                </div>
+            </div>
+
+            <button class="synthesis-btn w-full max-w-md py-6 rounded-[2rem] font-black outfit tracking-[0.5em] text-sm uppercase" onclick="startSynthesis()">
+                融合数字标本
+            </button>
+        </div>
+
+        <!-- 结果页 -->
+        <div id="page-result" class="page max-w-sm mx-auto">
+            <div class="glass p-10 w-full text-center space-y-10 relative overflow-hidden border-t-2 border-indigo-500/50">
+                <div class="absolute top-0 right-0 p-6 text-right">
+                    <div class="text-[7px] outfit uppercase text-slate-500 font-bold">Unique Asset ID</div>
+                    <div id="res-id" class="text-xs outfit font-black text-indigo-400">#----</div>
+                </div>
+
+                <div class="text-left space-y-1">
+                    <div id="res-mbti" class="text-[10px] outfit font-black tracking-[0.4em] text-indigo-500 uppercase">INTJ // NEBULA</div>
+                    <h3 id="res-name" class="text-4xl serif font-bold tracking-tight">深海潜航的黑鲸</h3>
+                </div>
+
+                <div class="py-4 relative flex justify-center h-48 items-center">
+                    <div id="res-icon-container" class="w-40 h-40 rounded-full bg-white/[0.03] border border-white/10 flex items-center justify-center">
+                        <span id="res-icon" class="text-7xl">🐋</span>
+                    </div>
+                </div>
+
+                <div class="space-y-6 text-left">
+                    <p id="res-text" class="text-sm text-slate-300 leading-relaxed serif italic border-l-2 border-indigo-500/50 pl-5">
+                        “孤独是你的声呐。你在无人能及的频率里，独自构建着一整座沉没的亚特兰蒂斯。”
+                    </p>
+                    <div class="flex justify-between items-end pt-6 opacity-20 text-[7px] outfit font-bold uppercase tracking-widest">
+                        <div>Verified Batch<br>YRZ-GEN-2026</div>
+                        <div class="text-right">Workshop Auth<br>Specimen Secure</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-8 flex space-x-4 w-full">
+                <button class="flex-1 py-4 rounded-2xl border border-white/10 text-[10px] outfit font-black uppercase opacity-40" onclick="restart()">重新实验</button>
+                <button class="flex-1 py-4 rounded-2xl synthesis-btn text-[10px] outfit font-black uppercase tracking-widest">保存标本名片</button>
+            </div>
+        </div>
+
+        <footer class="pb-6">
+            <p class="text-[9px] text-slate-700 tracking-[0.8em] uppercase font-black">Architect & Curator Synergy</p>
+        </footer>
+    </div>
+
+    <script>
+        // --- 核心数据库：16型人格映射 ---
+        const personalityDB = {
+            // Analysts (Purple系)
+            INTJ: { n: '深海潜航的黑鲸', i: '🐋', text: '“孤独是你的声呐。你在无人能及的频率里，构建着沉没的文明。”' },
+            INTP: { n: '星云缝隙的猫头鹰', i: '🦉', text: '“逻辑是你的羽翼。你不参与尘世纷争，只在思想高度俯瞰真理。”' },
+            ENTJ: { n: '极地巡航的狮王', i: '🦁', text: '“意志是你的疆域。在风暴中心，你不仅是规则的执行者，更是创造者。”' },
+            ENTP: { n: '逻辑森林的赤狐', i: '🦊', text: '“混乱是你的养分。你擅长拆解所有的条条框框，将其变成有趣的积木。”' },
+            // Diplomats (Green系)
+            INFJ: { n: '雪山之巅的白鹿', i: '🦌', text: '“你是喧嚣世界里的静默。清醒地看着人群涌动，却只在云端留下轻盈的影。”' },
+            INFP: { n: '梦境边缘的独角兽', i: '🦄', text: '“现实太重，你选择在那些不被看见的温柔里呼吸，守护破碎的星辰。”' },
+            ENFJ: { n: '晨曦海港的金龙', i: '🐉', text: '“你是光本身。哪怕身处寒冬，你的叙事也能引导疲惫的灵魂游向岛屿。”' },
+            ENFP: { n: '极光海洋的白豚', i: '🐬', text: '“世界是你的游乐场。即使在最绝望的频率里，你也能嗅出自由与冒险的味道。”' },
+            // Sentinels (Blue系)
+            ISTJ: { n: '岩层深处的守望者', i: '🐢', text: '“秩序是你的鳞甲。沉默是你对时间的最高敬意，你负责承载世界的基石。”' },
+            ISFJ: { n: '暖阳之下的巨象', i: '🐘', text: '“你背负着他人的避难所。在细微的温存里，你完成了最沉重的守护。”' },
+            ESTJ: { n: '秩序之塔的猎鹰', i: '🦅', text: '“规则是你的航线。任何一丝偏离都难逃你的利眼，你确保星轨不乱。”' },
+            ESFJ: { n: '蜜意平原的耕耘者', i: '🐝', text: '“你是连接的纽带。用勤勉织就一张温暖的网络，让所有人都有归处。”' },
+            // Explorers (Gold系)
+            ISTP: { n: '废弃工厂的银狼', i: '🐺', text: '“工具是你的感官。理性的冷酷是你最锋利的刀刃，你只对真实的物理规律着迷。”' },
+            ISFP: { n: '梦境画布的变色蝶', i: '🦋', text: '“美是你的本能。你随情绪而生，在色彩里隐匿又绽放，不为任何人停留。”' },
+            ESTP: { n: '荒野赛道的猎豹', i: '🐆', text: '“当下即是全部。速度是你与世界博弈的筹码，你从不在意终点在哪。”' },
+            ESFP: { n: '永恒派对的孔雀', i: '🦚', text: '“生命不该被虚度。你是一场永不落幕的感官盛宴，燃烧着最热烈的情绪。”' }
+        };
+
+        // --- 引擎逻辑 ---
+        let synth, scene, camera, renderer, crystal;
+        let scaleTarget = 1.0, rotSpeed = 0.003;
+        let selectedMBTI = 'INTJ', selectedVibe = 'FLOW', selectedGroup = 'analyst';
+
+        function unlockAudio() {
+            Tone.start();
+            synth = new Tone.PolySynth(Tone.Synth).toDestination();
+            synth.set({ envelope: { attack: 0.1, release: 2 }, oscillator: { type: "sine" } });
+            document.getElementById('audio-gate').style.display = 'none';
+        }
+
+        function init3D() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 5;
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            const geo = new THREE.IcosahedronGeometry(1.8, 1);
+            const mat = new THREE.MeshPhongMaterial({ color: 0x6366f1, wireframe: true, transparent: true, opacity: 0.2 });
+            crystal = new THREE.Mesh(geo, mat);
+            scene.add(crystal);
+            scene.add(new THREE.PointLight(0x818cf8, 2, 50));
+            scene.add(new THREE.AmbientLight(0x404040));
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            crystal.rotation.y += rotSpeed;
+            crystal.rotation.z += rotSpeed * 0.3;
+            const currentS = crystal.scale.x;
+            const lerpS = currentS + (scaleTarget - currentS) * 0.1;
+            crystal.scale.setScalar(lerpS + Math.sin(Date.now()*0.002)*0.05);
+            renderer.render(scene, camera);
+        }
+
+        function setMBTI(v, g, el) {
+            selectedMBTI = v; selectedGroup = g;
+            document.querySelectorAll('.chip:not(.mood)').forEach(b => b.classList.remove('active', 'analyst', 'diplomat', 'sentinel', 'explorer'));
+            el.classList.add('active', g);
+            const colors = { analyst: 0xa855f7, diplomat: 0x10b981, sentinel: 0x3b82f6, explorer: 0xf59e0b };
+            crystal.material.color.setHex(colors[g]);
+            if(synth) synth.triggerAttackRelease(g === 'analyst' ? "A3" : "E3", "8n");
+        }
+
+        function setVibe(v, el) {
+            selectedVibe = v;
+            document.querySelectorAll('.chip.mood').forEach(b => b.classList.remove('active'));
+            el.classList.add('active');
+            if(synth) synth.triggerAttackRelease("C5", "16n");
+
+            if(v === 'GLITCH') { crystal.material.wireframe = true; scaleTarget = 0.8; rotSpeed = 0.03; }
+            else if(v === 'SPARK') { crystal.material.wireframe = false; scaleTarget = 1.4; rotSpeed = 0.01; }
+            else if(v === 'VOID') { crystal.material.opacity = 0.05; scaleTarget = 0.5; rotSpeed = 0.001; }
+            else { crystal.material.wireframe = true; scaleTarget = 1.1; rotSpeed = 0.003; crystal.material.opacity = 0.2; }
+        }
+
+        function startSynthesis() {
+            const loader = document.getElementById('loader');
+            const msg = document.getElementById('loader-msg');
+            const circle = document.getElementById('progress-circle');
+            loader.style.display = 'flex';
+            circle.style.strokeDashoffset = "0";
+
+            const timeline = [
+                { t: "Extracting Neural DNA...", d: 0 },
+                { t: "Aligning " + selectedMBTI + " Matrix...", d: 1000 },
+                { t: "Injecting " + selectedVibe + " Energy...", d: 2000 }
+            ];
+            timeline.forEach(s => setTimeout(() => msg.innerText = s.t, s.d));
+
+            setTimeout(() => {
+                loader.style.display = 'none';
+                circle.style.strokeDashoffset = "754";
+                document.getElementById('page-config').classList.remove('active');
+                document.getElementById('page-result').classList.add('active');
+                
+                // 结果数据
+                const r = personalityDB[selectedMBTI];
+                document.getElementById('res-mbti').innerText = `${selectedMBTI} // ${selectedVibe}`;
+                document.getElementById('res-name').innerText = r.n;
+                document.getElementById('res-text').innerText = r.text;
+                
+                // 图标及动效
+                const iconSpan = document.getElementById('res-icon');
+                iconSpan.innerText = r.i;
+                iconSpan.className = "text-7xl icon-vibe-" + selectedVibe;
+
+                // 唯一 ID
+                const finalId = Math.floor(Math.random() * 8999) + 1000;
+                let c = 0;
+                const timer = setInterval(() => {
+                    document.getElementById('res-id').innerText = '#' + (Math.floor(Math.random() * 8999) + 1000);
+                    c++;
+                    if(c > 20) { clearInterval(timer); document.getElementById('res-id').innerText = '#' + finalId; }
+                }, 40);
+            }, 3200);
+        }
+
+        function restart() {
+            document.getElementById('page-result').classList.remove('active');
+            document.getElementById('page-config').classList.add('active');
+        }
+
+        window.onload = init3D;
+        window.onresize = () => {
+            camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        };
+    </script>
+</body>
+</html>

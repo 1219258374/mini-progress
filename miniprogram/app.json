@@ -1,5 +1,6 @@
 {
   "pages": [
+    "pages/mbti/mbti",
     "pages/index/index",
     "pages/example/index"
   ],
