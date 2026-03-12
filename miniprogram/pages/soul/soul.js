@@ -150,7 +150,7 @@ Page({
     this.setData({ currentMode: mode });
     currentMode = mode;
 
-    const hues = { NEBULA: 0.6, RIPPLE: 0.55, SOLAR: 0.5 };
+    const hues = { NEBULA: 0.6, RIPPLE: 0.55, SOLAR: 0.5, GRAVITY_FALL: 0.35, MAGNETIC_STORM: 0.02 };
     if (particleSystem) {
       const colorAttr = particleSystem.geometry.attributes.color;
       const newCol = new THREE.Color().setHSL(hues[mode], 0.9, 0.5);
@@ -208,10 +208,23 @@ Page({
         velocities[ix] += dx * pull;
         velocities[iy] += dy * pull;
       }
+      else if (currentMode === 'GRAVITY_FALL') {
+        velocities[ix] += (Math.random() - 0.5) * 0.005;
+        velocities[iy] += (Math.random() - 0.5) * 0.005;
+      }
+      else if (currentMode === 'MAGNETIC_STORM') {
+        velocities[ix] += (Math.random() - 0.5) * 0.04;
+        velocities[iy] += (Math.random() - 0.5) * 0.04;
+        const pull = Math.min(0.015, 1.0 / (dist + 2));
+        velocities[ix] += dx * pull;
+        velocities[iy] += dy * pull;
+      }
 
-      // Apply universal gravity from accelerometer
-      velocities[ix] += gravity.x;
-      velocities[iy] -= gravity.y; // Invert Y because screen space Y is opposite to physical accel Y
+      // Apply universal gravity from accelerometer ONLY if mode is one of the new ones
+      if (currentMode === 'GRAVITY_FALL' || currentMode === 'MAGNETIC_STORM') {
+        velocities[ix] += gravity.x * 2.0;
+        velocities[iy] -= gravity.y * 2.0; // Invert Y because screen space Y is opposite to physical accel Y
+      }
 
       velocities[ix] *= 0.94; velocities[iy] *= 0.94;
       posAttr.array[ix] += velocities[ix]; posAttr.array[iy] += velocities[iy];
@@ -223,7 +236,7 @@ Page({
       const speed = Math.sqrt(velocities[ix] ** 2 + velocities[iy] ** 2);
       const brightness = Math.max(0.3, Math.min(0.9, speed * 25 + 0.4));
       const color = new THREE.Color();
-      const baseHue = (currentMode === 'SOLAR') ? 0.5 : 0.62;
+      const baseHue = (currentMode === 'MAGNETIC_STORM') ? 0.02 : (currentMode === 'GRAVITY_FALL') ? 0.35 : (currentMode === 'SOLAR') ? 0.5 : 0.62;
       color.setHSL(baseHue + speed * 0.2, 0.85, brightness);
       colorAttr.array[ix] = color.r; colorAttr.array[ix + 1] = color.g; colorAttr.array[ix + 2] = color.b;
     }

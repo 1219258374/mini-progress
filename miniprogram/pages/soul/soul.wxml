@@ -8,12 +8,13 @@
       <view class="glass-pill outfit tracking-widest text-blue-400">BLUEPRINT // LAB V3.3</view>
     </view>
 
-    <!-- 侧边主题：全蓝系 -->
+    <!-- 侧边主题：全蓝系 + 重力系 -->
     <view class="theme-panel">
       <view class="theme-item {{currentMode === 'NEBULA' ? 'active' : ''}}" style="color: #3b82f6; background: #3b82f6;" bindtap="setTheme" data-mode="NEBULA"></view>
       <view class="theme-item {{currentMode === 'RIPPLE' ? 'active' : ''}}" style="color: #60a5fa; background: #60a5fa;" bindtap="setTheme" data-mode="RIPPLE"></view>
       <view class="theme-item {{currentMode === 'SOLAR' ? 'active' : ''}}" style="color: #06b6d4; background: #06b6d4;" bindtap="setTheme" data-mode="SOLAR"></view>
-      <view class="theme-item locked" style="color: #1e3a8a; background: #1e3a8a;"></view>
+      <view class="theme-item {{currentMode === 'GRAVITY_FALL' ? 'active' : ''}}" style="color: #10b981; background: #10b981;" bindtap="setTheme" data-mode="GRAVITY_FALL"></view>
+      <view class="theme-item {{currentMode === 'MAGNETIC_STORM' ? 'active' : ''}}" style="color: #f43f5e; background: #f43f5e;" bindtap="setTheme" data-mode="MAGNETIC_STORM"></view>
     </view>
 
     <!-- 左下角进度 -->
