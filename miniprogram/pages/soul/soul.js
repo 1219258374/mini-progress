@@ -30,7 +30,7 @@ Page({
 
   onUnload() {
     if (renderer) {
-      if(canvas) canvas.cancelAnimationFrame(reqId);
+      if (canvas) canvas.cancelAnimationFrame(reqId);
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement = null;
@@ -44,13 +44,13 @@ Page({
     // Creating a procedural soft circle using a basic canvas context isn't directly supported by threejs-miniprogram without explicit adapter bridges. 
     // To ensure 100% stability, we'll rely on blending modes and dot representations natively.
     // Particle size attenuation + additive blending gives a solid alternative.
-    return null; 
+    return null;
   },
 
   _initWebGL(node) {
     canvas = node;
     THREE = createScopedThreejs(canvas);
-    
+
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     const info = wx.getSystemInfoSync();
     renderer.setPixelRatio(Math.min(info.pixelRatio, 2));
@@ -64,36 +64,36 @@ Page({
     positions = new Float32Array(particleCount * 3);
     velocities = new Float32Array(particleCount * 3);
     colors = new Float32Array(particleCount * 3);
-    orbitRadii = new Float32Array(particleCount); 
+    orbitRadii = new Float32Array(particleCount);
     phase = new Float32Array(particleCount);
 
     for (let i = 0; i < particleCount; i++) {
-      positions[i*3] = (Math.random()-0.5)*20; 
-      positions[i*3+1] = (Math.random()-0.5)*20; 
-      positions[i*3+2] = (Math.random()-0.5)*5;
-      orbitRadii[i] = 0.8 + Math.pow(Math.random(), 2) * 3.5; 
+      positions[i * 3] = (Math.random() - 0.5) * 20;
+      positions[i * 3 + 1] = (Math.random() - 0.5) * 20;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 5;
+      orbitRadii[i] = 0.8 + Math.pow(Math.random(), 2) * 3.5;
       phase[i] = Math.random() * Math.PI * 2;
-      
+
       const color = new THREE.Color().setHSL(0.6, 0.8, 0.5);
-      colors[i*3] = color.r; colors[i*3+1] = color.g; colors[i*3+2] = color.b;
+      colors[i * 3] = color.r; colors[i * 3 + 1] = color.g; colors[i * 3 + 2] = color.b;
     }
 
     geometry.addAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.addAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-    const material = new THREE.PointsMaterial({ 
+    const material = new THREE.PointsMaterial({
       size: 0.15,
-      vertexColors: THREE.VertexColors, 
-      transparent: true, 
-      opacity: 0.8, 
-      blending: THREE.AdditiveBlending, 
+      vertexColors: THREE.VertexColors,
+      transparent: true,
+      opacity: 0.8,
+      blending: THREE.AdditiveBlending,
       depthWrite: false,
-      sizeAttenuation: true 
+      sizeAttenuation: true
     });
-    
+
     particleSystem = new THREE.Points(geometry, material);
     scene.add(particleSystem);
-    
+
     this._animate();
   },
 
@@ -101,13 +101,13 @@ Page({
     const mode = e.currentTarget.dataset.mode;
     this.setData({ currentMode: mode });
     currentMode = mode;
-    
+
     const hues = { NEBULA: 0.6, RIPPLE: 0.55, SOLAR: 0.5 };
-    if(particleSystem) {
+    if (particleSystem) {
       const colorAttr = particleSystem.geometry.attributes.color;
       const newCol = new THREE.Color().setHSL(hues[mode], 0.9, 0.5);
-      for(let i=0; i<particleCount; i++) {
-        colorAttr.array[i*3] = newCol.r; colorAttr.array[i*3+1] = newCol.g; colorAttr.array[i*3+2] = newCol.b;
+      for (let i = 0; i < particleCount; i++) {
+        colorAttr.array[i * 3] = newCol.r; colorAttr.array[i * 3 + 1] = newCol.g; colorAttr.array[i * 3 + 2] = newCol.b;
       }
       colorAttr.needsUpdate = true;
     }
@@ -123,10 +123,10 @@ Page({
     if (isInteracting && energy < 100) {
       energy += 0.06;
       this.setData({ progNum: Math.floor(energy) });
-      if(energy >= 100) {
-        this.setData({ 
-          showDiag: true, 
-          resId: '#BLUE-' + (Math.floor(Math.random()*8999)+1000)
+      if (energy >= 100) {
+        this.setData({
+          showDiag: true,
+          resId: '#BLUE-' + (Math.floor(Math.random() * 8999) + 1000)
         });
       }
     }
@@ -138,24 +138,24 @@ Page({
     for (let i = 0; i < particleCount; i++) {
       const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
       const dx = target.x - posAttr.array[ix], dy = target.y - posAttr.array[iy];
-      const dist = Math.sqrt(dx*dx + dy*dy);
+      const dist = Math.sqrt(dx * dx + dy * dy);
       const angle = Math.atan2(dy, dx);
 
-      if(currentMode === 'NEBULA') {
+      if (currentMode === 'NEBULA') {
         const error = dist - orbitRadii[i];
         velocities[ix] += Math.cos(angle) * error * 0.0025;
         velocities[iy] += Math.sin(angle) * error * 0.0025;
-      } 
-      else if(currentMode === 'RIPPLE') {
+      }
+      else if (currentMode === 'RIPPLE') {
         const wave = Math.sin(dist * 2 - time * 5) * 0.02;
         posAttr.array[iz] += (wave - posAttr.array[iz]) * 0.1;
         const push = Math.max(0, (1.5 - dist) * 0.005);
         velocities[ix] -= Math.cos(angle) * push;
         velocities[iy] -= Math.sin(angle) * push;
       }
-      else if(currentMode === 'SOLAR') {
-        velocities[ix] += (Math.random()-0.5) * 0.02;
-        velocities[iy] += (Math.random()-0.5) * 0.02;
+      else if (currentMode === 'SOLAR') {
+        velocities[ix] += (Math.random() - 0.5) * 0.02;
+        velocities[iy] += (Math.random() - 0.5) * 0.02;
         const pull = Math.min(0.008, 0.6 / (dist + 5));
         velocities[ix] += dx * pull;
         velocities[iy] += dy * pull;
@@ -163,17 +163,17 @@ Page({
 
       velocities[ix] *= 0.94; velocities[iy] *= 0.94;
       posAttr.array[ix] += velocities[ix]; posAttr.array[iy] += velocities[iy];
-      
-      if(currentMode !== 'RIPPLE') {
+
+      if (currentMode !== 'RIPPLE') {
         posAttr.array[iz] += Math.sin(time + phase[i]) * 0.002;
       }
 
-      const speed = Math.sqrt(velocities[ix]**2 + velocities[iy]**2);
+      const speed = Math.sqrt(velocities[ix] ** 2 + velocities[iy] ** 2);
       const brightness = Math.max(0.3, Math.min(0.9, speed * 25 + 0.4));
       const color = new THREE.Color();
       const baseHue = (currentMode === 'SOLAR') ? 0.5 : 0.62;
       color.setHSL(baseHue + speed * 0.2, 0.85, brightness);
-      colorAttr.array[ix] = color.r; colorAttr.array[ix+1] = color.g; colorAttr.array[ix+2] = color.b;
+      colorAttr.array[ix] = color.r; colorAttr.array[ix + 1] = color.g; colorAttr.array[ix + 2] = color.b;
     }
     posAttr.needsUpdate = true; colorAttr.needsUpdate = true;
     particleSystem.rotation.z += 0.0001;
@@ -183,7 +183,7 @@ Page({
   _updateMouse(x, y) {
     isInteracting = true;
     const info = wx.getSystemInfoSync();
-    mouse.x = (x / info.windowWidth) * 2 - 1; 
+    mouse.x = (x / info.windowWidth) * 2 - 1;
     mouse.y = -(y / info.windowHeight) * 2 + 1;
     mouse.x *= 7.5; mouse.y *= 5.5;
   },
@@ -191,11 +191,11 @@ Page({
   touchStart(e) {
     if (e.touches && e.touches.length > 0) this._updateMouse(e.touches[0].clientX, e.touches[0].clientY);
   },
-  
+
   touchMove(e) {
     if (e.touches && e.touches.length > 0) this._updateMouse(e.touches[0].clientX, e.touches[0].clientY);
   },
-  
+
   touchEnd(e) {
     isInteracting = false;
   },

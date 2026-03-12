@@ -57,7 +57,7 @@ Page({
   _initWebGL(node) {
     canvas = node;
     THREE = createScopedThreejs(canvas);
-    
+
     // Set up renderer
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     // Handle retina
@@ -70,11 +70,11 @@ Page({
     camera.position.z = 5;
 
     const geo = new THREE.IcosahedronGeometry(1.8, 1);
-    const mat = new THREE.MeshPhongMaterial({ 
-      color: 0x6366f1, 
-      wireframe: true, 
-      transparent: true, 
-      opacity: 0.2 
+    const mat = new THREE.MeshPhongMaterial({
+      color: 0x6366f1,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.2
     });
     crystal = new THREE.Mesh(geo, mat);
     scene.add(crystal);
@@ -83,21 +83,21 @@ Page({
 
     // Render loop
     const render = () => {
-      if(!renderer) return;
+      if (!renderer) return;
       canvas.requestAnimationFrame(render);
       crystal.rotation.y += rotSpeed;
       crystal.rotation.z += rotSpeed * 0.3;
       const currentS = crystal.scale.x;
       const lerpS = currentS + (scaleTarget - currentS) * 0.1;
-      crystal.scale.setScalar(lerpS + Math.sin(Date.now()*0.002)*0.05);
+      crystal.scale.setScalar(lerpS + Math.sin(Date.now() * 0.002) * 0.05);
       renderer.render(scene, camera);
     }
     render();
   },
 
-  touchStart(e) {},
-  touchMove(e) {},
-  touchEnd(e) {},
+  touchStart(e) { },
+  touchMove(e) { },
+  touchEnd(e) { },
 
   enterLab() {
     // Tone.js unsupported, skipping audio setup
@@ -108,7 +108,7 @@ Page({
     const v = e.currentTarget.dataset.m;
     const g = e.currentTarget.dataset.g;
     this.setData({ selectedMBTI: v, selectedGroup: g });
-    
+
     const colors = { analyst: 0xa855f7, diplomat: 0x10b981, sentinel: 0x3b82f6, explorer: 0xf59e0b };
     if (crystal) {
       crystal.material.color.setHex(colors[g]);
@@ -120,16 +120,16 @@ Page({
     this.setData({ selectedVibe: v });
 
     if (!crystal) return;
-    if(v === 'GLITCH') { crystal.material.wireframe = true; scaleTarget = 0.8; rotSpeed = 0.03; }
-    else if(v === 'SPARK') { crystal.material.wireframe = false; scaleTarget = 1.4; rotSpeed = 0.01; }
-    else if(v === 'VOID') { crystal.material.opacity = 0.05; scaleTarget = 0.5; rotSpeed = 0.001; }
+    if (v === 'GLITCH') { crystal.material.wireframe = true; scaleTarget = 0.8; rotSpeed = 0.03; }
+    else if (v === 'SPARK') { crystal.material.wireframe = false; scaleTarget = 1.4; rotSpeed = 0.01; }
+    else if (v === 'VOID') { crystal.material.opacity = 0.05; scaleTarget = 0.5; rotSpeed = 0.001; }
     else { crystal.material.wireframe = true; scaleTarget = 1.1; rotSpeed = 0.003; crystal.material.opacity = 0.2; }
   },
 
   startSynthesis() {
     this.setData({ step: 1, loadProgress: 0, loadMessage: "Extracting Neural DNA..." });
     let p = 0;
-    
+
     const interval = setInterval(() => {
       p += 2;
       this.setData({ loadProgress: p });
@@ -138,9 +138,9 @@ Page({
 
       if (p >= 100) {
         clearInterval(interval);
-        
+
         const finalId = Math.floor(Math.random() * 8999) + 1000;
-        this.setData({ 
+        this.setData({
           step: 3,
           resId: '#' + finalId,
           resData: personalityDB[this.data.selectedMBTI]
