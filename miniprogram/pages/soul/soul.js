@@ -79,8 +79,8 @@ Page({
       colors[i*3] = color.r; colors[i*3+1] = color.g; colors[i*3+2] = color.b;
     }
 
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.addAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.addAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     const material = new THREE.PointsMaterial({ 
       size: 0.15,
