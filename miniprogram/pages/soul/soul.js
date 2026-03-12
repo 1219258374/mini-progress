@@ -33,7 +33,6 @@ Page({
       if(canvas) canvas.cancelAnimationFrame(reqId);
       renderer.dispose();
       renderer.forceContextLoss();
-      renderer.context = null;
       renderer.domElement = null;
       renderer = null;
     }
@@ -84,8 +83,7 @@ Page({
 
     const material = new THREE.PointsMaterial({ 
       size: 0.15,
-      map: this._createTexture(), 
-      vertexColors: true, 
+      vertexColors: THREE.VertexColors, 
       transparent: true, 
       opacity: 0.8, 
       blending: THREE.AdditiveBlending, 
@@ -191,17 +189,14 @@ Page({
   },
 
   touchStart(e) {
-    if (THREE) THREE.global.touchEventHandlerFactory('canvas', 'touchstart')(e);
-    if (e.touches.length > 0) this._updateMouse(e.touches[0].clientX, e.touches[0].clientY);
+    if (e.touches && e.touches.length > 0) this._updateMouse(e.touches[0].clientX, e.touches[0].clientY);
   },
   
   touchMove(e) {
-    if (THREE) THREE.global.touchEventHandlerFactory('canvas', 'touchmove')(e);
-    if (e.touches.length > 0) this._updateMouse(e.touches[0].clientX, e.touches[0].clientY);
+    if (e.touches && e.touches.length > 0) this._updateMouse(e.touches[0].clientX, e.touches[0].clientY);
   },
   
   touchEnd(e) {
-    if (THREE) THREE.global.touchEventHandlerFactory('canvas', 'touchend')(e);
     isInteracting = false;
   },
 

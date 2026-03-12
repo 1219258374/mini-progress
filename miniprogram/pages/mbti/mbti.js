@@ -48,7 +48,6 @@ Page({
     if (renderer) {
       renderer.dispose()
       renderer.forceContextLoss()
-      renderer.context = null
       renderer.domElement = null
       renderer = null
     }
@@ -96,15 +95,9 @@ Page({
     render();
   },
 
-  touchStart(e) {
-    if(THREE) THREE.global.touchEventHandlerFactory('canvas', 'touchstart')(e);
-  },
-  touchMove(e) {
-    if(THREE) THREE.global.touchEventHandlerFactory('canvas', 'touchmove')(e);
-  },
-  touchEnd(e) {
-    if(THREE) THREE.global.touchEventHandlerFactory('canvas', 'touchend')(e);
-  },
+  touchStart(e) {},
+  touchMove(e) {},
+  touchEnd(e) {},
 
   enterLab() {
     // Tone.js unsupported, skipping audio setup
