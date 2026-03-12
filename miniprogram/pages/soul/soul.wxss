@@ -1,0 +1,4 @@
+/* soul.wxss */
+page {
+  background-color: #00040a;
+}

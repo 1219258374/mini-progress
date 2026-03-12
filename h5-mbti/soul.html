@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>灵魂指纹实验室</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;600;800&family=Noto+Serif+SC:wght@500;700&display=swap');
+        
+        :root {
+            --bg: #00040a;
+            --primary: #3b82f6; /* 核心蓝色 */
+            --accent: #60a5fa;
+        }
+
+        body { 
+            margin: 0; background-color: var(--bg); color: #f8fafc; 
+            font-family: 'Inter', sans-serif; overflow: hidden; touch-action: none;
+        }
+
+        .serif { font-family: 'Noto Serif SC', serif; }
+        .outfit { font-family: 'Outfit', sans-serif; }
+
+        /* UI 覆盖层 */
+        .ui-layer {
+            position: fixed; inset: 0; z-index: 20;
+            pointer-events: none;
+        }
+
+        .glass-pill {
+            background: rgba(30, 64, 175, 0.1);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            padding: 0.6rem 1.2rem; border-radius: 999px;
+            font-size: 10px; letter-spacing: 0.2em; color: var(--accent);
+            pointer-events: auto;
+        }
+
+        /* 侧边主题切换 - 蓝色调优化 */
+        .theme-panel {
+            position: fixed; right: 2rem; top: 50%; transform: translateY(-50%);
+            display: flex; flex-direction: column; gap: 1.5rem; pointer-events: auto;
+            background: rgba(30, 58, 138, 0.1); padding: 1.5rem 0.8rem;
+            border-radius: 2rem; border: 1px solid rgba(59, 130, 246, 0.1);
+        }
+        .theme-item {
+            width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(59, 130, 246, 0.3);
+            cursor: pointer; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+        .theme-item.active { transform: scale(1.4); border-color: white; box-shadow: 0 0 20px currentColor; }
+        .theme-item.locked::after {
+            content: '🔒'; font-size: 8px; position: absolute; right: -15px; top: 50%; transform: translateY(-50%);
+            opacity: 0.3;
+        }
+
+        /* 左下角采样指示 */
+        .scanner-corner {
+            position: fixed; bottom: 2rem; left: 2rem; pointer-events: none;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .energy-rail {
+            width: 120px; height: 2px; background: rgba(59, 130, 246, 0.1);
+            border-radius: 2px; overflow: hidden;
+        }
+        #energy-bar {
+            width: 0%; height: 100%; background: var(--primary);
+            transition: width 0.3s; box-shadow: 0 0 15px var(--primary);
+        }
+
+        /* 微型诊断报告 */
+        #diag-layer {
+            display: none; position: fixed; 
+            bottom: 4.5rem; left: 2rem; 
+            z-index: 100; pointer-events: none;
+        }
+        
+        .report-card-mini { 
+            width: 250px; 
+            background: rgba(10, 25, 47, 0.85);
+            backdrop-filter: blur(25px);
+            padding: 1.5rem; border-radius: 1.5rem;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+            pointer-events: auto;
+            animation: miniIn 0.6s cubic-bezier(0.2, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes miniIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+
+        .btn-pay-mini {
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
+            padding: 0.8rem 1rem; border-radius: 999px;
+            font-weight: 800; font-size: 10px; letter-spacing: 0.1em;
+            cursor: pointer; color: white; width: 100%;
+            text-align: center; margin-top: 1rem;
+            border: none;
+        }
+
+        #canvas-container { position: fixed; inset: 0; z-index: 0; }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div class="ui-layer">
+        <!-- Top Info -->
+        <div class="fixed top-8 left-8">
+            <div class="glass-pill outfit tracking-widest text-blue-400">BLUEPRINT // LAB V3.3</div>
+        </div>
+
+        <!-- 侧边主题：全蓝系 -->
+        <div class="theme-panel">
+            <div class="theme-item active" style="color: #3b82f6; background: #3b82f6;" onclick="setTheme('NEBULA', this)"></div>
+            <div class="theme-item" style="color: #60a5fa; background: #60a5fa;" onclick="setTheme('RIPPLE', this)"></div>
+            <div class="theme-item" style="color: #06b6d4; background: #06b6d4;" onclick="setTheme('SOLAR', this)"></div>
+            <div class="theme-item locked" style="color: #1e3a8a; background: #1e3a8a;"></div>
+        </div>
+
+        <!-- 左下角进度 -->
+        <div class="scanner-corner">
+            <div class="flex justify-between items-end w-full">
+                <span class="text-[7px] outfit tracking-[0.4em] text-blue-500 opacity-60 uppercase">Syncing Frequency</span>
+                <span id="prog-num" class="text-[8px] outfit text-blue-400">0%</span>
+            </div>
+            <div class="energy-rail">
+                <div id="energy-bar"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 左下角结果提示 -->
+    <div id="diag-layer">
+        <div class="report-card-mini">
+            <div class="flex justify-between items-center mb-3">
+                <span id="res-id" class="text-[7px] outfit text-blue-500">ID: #BLUE-SCAN</span>
+                <button onclick="closeDiag()" class="text-[10px] text-blue-400 opacity-40 hover:opacity-100">✕</button>
+            </div>
+            
+            <div class="flex items-center gap-3 mb-4">
+                <div class="text-2xl">💧</div>
+                <h3 class="serif text-sm font-bold text-blue-100">深海的静谧回响</h3>
+            </div>
+
+            <p class="text-[10px] text-blue-200/60 leading-relaxed serif italic border-l border-blue-500/40 pl-3">
+                “你的划动如潮汐般有规律。在这种深蓝的静谧中，你正在找回失去的秩序感。”
+            </p>
+
+            <button class="btn-pay-mini outfit uppercase" onclick="alert('商业逻辑：支付 9.9 元解锁 4K 动态壁纸与完整报告')">
+                解锁数字资产 (¥9.9)
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, renderer, particleSystem;
+        let mouse = new THREE.Vector2(-100, -100);
+        let target = new THREE.Vector2(0, 0);
+        let energy = 0, isInteracting = false;
+        let currentMode = 'NEBULA';
+        
+        const particleCount = 7000; // 增加密度
+        let positions, velocities, colors, orbitRadii, phase;
+
+        // 优化：生成更清晰、核心更明亮的粒子材质
+        function createTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            grad.addColorStop(0, 'rgba(255,255,255,1)');    // 核心
+            grad.addColorStop(0.1, 'rgba(100,200,255,0.8)'); // 浅蓝边缘
+            grad.addColorStop(0.3, 'rgba(0,100,255,0.2)');   // 深蓝晕染
+            grad.addColorStop(1, 'rgba(0,0,0,0)');           // 透明
+            ctx.fillStyle = grad; ctx.fillRect(0, 0, 64, 64);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 6;
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            const geometry = new THREE.BufferGeometry();
+            positions = new Float32Array(particleCount * 3);
+            velocities = new Float32Array(particleCount * 3);
+            colors = new Float32Array(particleCount * 3);
+            orbitRadii = new Float32Array(particleCount); 
+            phase = new Float32Array(particleCount); // 用于涟漪起伏
+
+            for (let i = 0; i < particleCount; i++) {
+                positions[i*3] = (Math.random()-0.5)*20; 
+                positions[i*3+1] = (Math.random()-0.5)*20; 
+                positions[i*3+2] = (Math.random()-0.5)*5;
+                orbitRadii[i] = 0.8 + Math.pow(Math.random(), 2) * 3.5; 
+                phase[i] = Math.random() * Math.PI * 2;
+                
+                const color = new THREE.Color().setHSL(0.6, 0.8, 0.5);
+                colors[i*3] = color.r; colors[i*3+1] = color.g; colors[i*3+2] = color.b;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const material = new THREE.PointsMaterial({ 
+                size: 0.18, // 增大尺寸使其更清晰
+                map: createTexture(), 
+                vertexColors: true, 
+                transparent: true, 
+                opacity: 0.8, 
+                blending: THREE.AdditiveBlending, 
+                depthWrite: false,
+                sizeAttenuation: true 
+            });
+            particleSystem = new THREE.Points(geometry, material);
+            scene.add(particleSystem);
+            animate();
+        }
+
+        function setTheme(mode, el) {
+            currentMode = mode;
+            document.querySelectorAll('.theme-item').forEach(d => d.classList.remove('active'));
+            el.classList.add('active');
+            
+            const hues = { NEBULA: 0.6, RIPPLE: 0.55, SOLAR: 0.5 };
+            if(particleSystem) {
+                const colorAttr = particleSystem.geometry.attributes.color;
+                const newCol = new THREE.Color().setHSL(hues[mode], 0.9, 0.5);
+                for(let i=0; i<particleCount; i++) {
+                    colorAttr.array[i*3] = newCol.r; colorAttr.array[i*3+1] = newCol.g; colorAttr.array[i*3+2] = newCol.b;
+                }
+                colorAttr.needsUpdate = true;
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (!particleSystem) return;
+
+            target.x += (mouse.x - target.x) * 0.05;
+            target.y += (mouse.y - target.y) * 0.05;
+
+            if(isInteracting && energy < 100) {
+                energy += 0.06; // 采样更久，增加沉淀感
+                document.getElementById('energy-bar').style.width = energy + '%';
+                document.getElementById('prog-num').innerText = Math.floor(energy) + '%';
+                if(energy >= 100) showDiag();
+            }
+
+            const posAttr = particleSystem.geometry.attributes.position;
+            const colorAttr = particleSystem.geometry.attributes.color;
+            const time = Date.now() * 0.001;
+
+            for (let i = 0; i < particleCount; i++) {
+                const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
+                const dx = target.x - posAttr.array[ix], dy = target.y - posAttr.array[iy];
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                const angle = Math.atan2(dy, dx);
+
+                if(currentMode === 'NEBULA') {
+                    const error = dist - orbitRadii[i];
+                    velocities[ix] += Math.cos(angle) * error * 0.0025;
+                    velocities[iy] += Math.sin(angle) * error * 0.0025;
+                } 
+                else if(currentMode === 'RIPPLE') {
+                    // 水波模式：指尖是一个扰动源，粒子随距离上下起伏
+                    const wave = Math.sin(dist * 2 - time * 5) * 0.02;
+                    posAttr.array[iz] += (wave - posAttr.array[iz]) * 0.1;
+                    // 轻微的水平避让
+                    const push = Math.max(0, (1.5 - dist) * 0.005);
+                    velocities[ix] -= Math.cos(angle) * push;
+                    velocities[iy] -= Math.sin(angle) * push;
+                }
+                else if(currentMode === 'SOLAR') {
+                    // 恒星模式：高频震荡
+                    velocities[ix] += (Math.random()-0.5) * 0.02;
+                    velocities[iy] += (Math.random()-0.5) * 0.02;
+                    const pull = Math.min(0.008, 0.6 / (dist + 5));
+                    velocities[ix] += dx * pull;
+                    velocities[iy] += dy * pull;
+                }
+
+                // 统一物理阻力
+                velocities[ix] *= 0.94; velocities[iy] *= 0.94;
+                posAttr.array[ix] += velocities[ix]; posAttr.array[iy] += velocities[iy];
+                
+                // 细节：即时在水波模式，Z轴也有微小的自然浮动
+                if(currentMode !== 'RIPPLE') {
+                    posAttr.array[iz] += Math.sin(time + phase[i]) * 0.002;
+                }
+
+                // 色彩反馈：基于速度
+                const speed = Math.sqrt(velocities[ix]**2 + velocities[iy]**2);
+                const brightness = Math.max(0.3, Math.min(0.9, speed * 25 + 0.4));
+                const color = new THREE.Color();
+                const baseHue = (currentMode === 'SOLAR') ? 0.5 : 0.62;
+                color.setHSL(baseHue + speed * 0.2, 0.85, brightness);
+                colorAttr.array[ix] = color.r; colorAttr.array[ix+1] = color.g; colorAttr.array[ix+2] = color.b;
+            }
+            posAttr.needsUpdate = true; colorAttr.needsUpdate = true;
+            particleSystem.rotation.z += 0.0001;
+            renderer.render(scene, camera);
+        }
+
+        function updateMouse(e) {
+            isInteracting = true;
+            let x, y;
+            if (e.touches && e.touches.length > 0) { x = e.touches[0].clientX; y = e.touches[0].clientY; }
+            else { x = e.clientX; y = e.clientY; }
+            mouse.x = (x / window.innerWidth) * 2 - 1; mouse.y = -(y / window.innerHeight) * 2 + 1;
+            mouse.x *= 7.5; mouse.y *= 5.5;
+        }
+
+        function showDiag() {
+            document.getElementById('res-id').innerText = "ID: #BLUE-" + (Math.floor(Math.random()*8999)+1000);
+            document.getElementById('diag-layer').style.display = 'block';
+        }
+        function closeDiag() {
+            energy = 0; isInteracting = false;
+            document.getElementById('energy-bar').style.width = '0%';
+            document.getElementById('prog-num').innerText = '0%';
+            document.getElementById('diag-layer').style.display = 'none';
+        }
+
+        window.addEventListener('pointermove', updateMouse);
+        window.addEventListener('touchmove', updateMouse, { passive: true });
+        window.addEventListener('pointerup', () => isInteracting = false);
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        window.onload = init;
+    </script>
+</body>
+</html>

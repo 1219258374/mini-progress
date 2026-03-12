@@ -1,0 +1,37 @@
+<view class="container">
+  <!-- Glowing Background Orbs -->
+  <view class="bg-orb orb-1"></view>
+  <view class="bg-orb orb-2"></view>
+  <view class="bg-noise"></view>
+
+  <view class="header">
+    <view class="logo-text">YOROZUYA LAB</view>
+    <view class="subtitle">Select Your Laboratory</view>
+  </view>
+
+  <view class="cards-wrapper">
+    <!-- Card 1: MBTI -->
+    <view class="glass-card card-mbti" bindtap="goToMBTI" hover-class="card-hover">
+      <view class="card-icon">🧬</view>
+      <view class="card-content">
+        <text class="card-title">性格实验室 8.0</text>
+        <text class="card-desc">16-Personalities Comprehensive Synthesis</text>
+      </view>
+      <view class="card-arrow">→</view>
+    </view>
+
+    <!-- Card 2: Soul Fingerprint -->
+    <view class="glass-card card-soul" bindtap="goToSoul" hover-class="card-hover">
+      <view class="card-icon">💧</view>
+      <view class="card-content">
+        <text class="card-title">灵魂指纹实验室</text>
+        <text class="card-desc">Deep Blue Blueprint & Sync Scanner</text>
+      </view>
+      <view class="card-arrow">→</view>
+    </view>
+  </view>
+
+  <view class="footer">
+    <text>Architect & Curator Synergy</text>
+  </view>
+</view>
