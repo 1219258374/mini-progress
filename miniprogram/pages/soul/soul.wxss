@@ -89,35 +89,41 @@ page {
   border: 4rpx solid rgba(255,255,255,0.4) !important;
 }
 
-/* Color Palette Panel */
+/* Color Palette Panel - Bottom Bar */
 .palette-panel {
   position: fixed;
-  right: 140rpx;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 300rpx;
-  background: rgba(10, 25, 47, 0.85);
+  bottom: 40rpx;
+  left: 40rpx;
+  right: 40rpx;
+  background: rgba(10, 25, 47, 0.9);
   backdrop-filter: blur(30rpx);
   border: 1px solid rgba(59, 130, 246, 0.2);
   border-radius: 32rpx;
-  padding: 32rpx 24rpx;
+  padding: 28rpx 32rpx;
   pointer-events: auto;
   z-index: 30;
-  animation: paletteIn 0.3s ease-out forwards;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
 }
 
-@keyframes paletteIn {
-  from { opacity: 0; transform: translateY(-50%) translateX(20rpx); }
-  to { opacity: 1; transform: translateY(-50%) translateX(0); }
+.palette-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.palette-slider {
+  flex: 1;
 }
 
 .palette-label {
-  font-size: 18rpx;
+  font-size: 20rpx;
   color: #60a5fa;
-  letter-spacing: 0.15em;
-  margin-bottom: 8rpx;
+  letter-spacing: 0.1em;
   font-family: sans-serif;
-  text-transform: uppercase;
+  min-width: 60rpx;
+  flex-shrink: 0;
 }
 
 /* Scanner Corner */

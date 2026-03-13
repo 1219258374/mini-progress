@@ -24,7 +24,8 @@ Page({
     resId: '',
     showPalette: false,
     customHue: 220,
-    customBright: 50
+    customBright: 50,
+    customSize: 50
   },
 
   onLoad(options) {
@@ -136,17 +137,19 @@ Page({
     const uniforms = {
       pointTexture: { value: this._createTexture() },
       isMeteor: { value: 0.0 },
-      gravityAngle: { value: -Math.PI / 2 }
+      gravityAngle: { value: -Math.PI / 2 },
+      particleSize: { value: 4.0 }
     };
 
     const vertexShader = `
       attribute vec3 color;
       varying vec3 vColor;
       uniform float isMeteor;
+      uniform float particleSize;
       void main() {
         vColor = color;
         vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = (isMeteor > 0.5 ? 45.0 : 4.0) * (30.0 / -mvPosition.z);
+        gl_PointSize = (isMeteor > 0.5 ? 45.0 : particleSize) * (30.0 / -mvPosition.z);
         gl_Position = projectionMatrix * mvPosition;
       }
     `;
@@ -220,17 +223,6 @@ Page({
 
     target.x += (mouse.x - target.x) * 0.05;
     target.y += (mouse.y - target.y) * 0.05;
-
-    if (isInteracting && energy < 100) {
-      energy += 0.06;
-      this.setData({ progNum: Math.floor(energy) });
-      if (energy >= 100) {
-        this.setData({
-          showDiag: true,
-          resId: '#BLUE-' + (Math.floor(Math.random() * 8999) + 1000)
-        });
-      }
-    }
 
     const posAttr = particleSystem.geometry.attributes.position;
     const colorAttr = particleSystem.geometry.attributes.color;
@@ -361,16 +353,21 @@ Page({
         posAttr.array[iz] += Math.sin(time + phase[i]) * 0.002;
       }
 
-      // Use custom hue/brightness from palette if available
+      // Use custom hue/brightness from palette
       const speed = Math.sqrt(velocities[ix] ** 2 + velocities[iy] ** 2);
       const userHue = this.data.customHue / 360;
       const userBright = this.data.customBright / 100;
-      const brightness = Math.max(0.2, Math.min(0.95, speed * 20 + userBright * 0.6 + 0.2));
+      const brightness = Math.max(0.15, Math.min(0.95, userBright * 0.8 + speed * 5.0));
       const color = new THREE.Color();
       color.setHSL(userHue + speed * 0.1, 0.85, brightness);
       colorAttr.array[ix] = color.r; colorAttr.array[ix + 1] = color.g; colorAttr.array[ix + 2] = color.b;
     }
     posAttr.needsUpdate = true; colorAttr.needsUpdate = true;
+
+    // Sync particle size uniform from slider
+    if (particleSystem) {
+      particleSystem.material.uniforms.particleSize.value = 1.0 + (this.data.customSize / 100) * 10.0;
+    }
 
     // Update gravity angle for the meteor shader streak rotation
     if (currentMode === 'METEOR_SHOWER' && particleSystem) {
@@ -427,5 +424,9 @@ Page({
 
   onBrightChange(e) {
     this.setData({ customBright: e.detail.value });
+  },
+
+  onSizeChange(e) {
+    this.setData({ customSize: e.detail.value });
   }
 })

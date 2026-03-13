@@ -8,7 +8,7 @@
       <view class="glass-pill outfit tracking-widest text-blue-400">BLUEPRINT // LAB V3.3</view>
     </view>
 
-    <!-- 侧边主题：全蓝系 + 重力系 -->
+    <!-- 侧边主题 -->
     <view class="theme-panel">
       <view class="theme-item {{currentMode === 'NEBULA' ? 'active' : ''}}" style="color: #3b82f6; background: #3b82f6;" bindtap="setTheme" data-mode="NEBULA"></view>
       <view class="theme-item {{currentMode === 'RIPPLE' ? 'active' : ''}}" style="color: #60a5fa; background: #60a5fa;" bindtap="setTheme" data-mode="RIPPLE"></view>
@@ -19,46 +19,20 @@
       <view class="theme-item palette-btn {{showPalette ? 'active' : ''}}" style="background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);" bindtap="togglePalette"></view>
     </view>
 
-    <!-- 调色板面板 -->
-    <view class="palette-panel" wx:if="{{showPalette}}">
-      <view class="palette-label">色相 H</view>
-      <slider min="0" max="360" value="{{customHue}}" activeColor="#60a5fa" block-size="14" bindchange="onHueChange" />
-      <view class="palette-label">亮度 L</view>
-      <slider min="10" max="100" value="{{customBright}}" activeColor="#60a5fa" block-size="14" bindchange="onBrightChange" />
-    </view>
-
-    <!-- 左下角进度 -->
-    <view class="scanner-corner">
-      <view class="prog-text-row">
-        <text class="prog-label">Syncing Frequency</text>
-        <text class="prog-num text-blue-400">{{progNum}}%</text>
+    <!-- 调色板面板 (底部) - 用 hidden 保持 DOM 不销毁, 避免滑块值重置 -->
+    <view class="palette-panel" hidden="{{!showPalette}}">
+      <view class="palette-row">
+        <view class="palette-label">色相</view>
+        <slider class="palette-slider" min="0" max="360" value="{{customHue}}" activeColor="#60a5fa" block-size="14" bindchanging="onHueChange" bindchange="onHueChange" />
       </view>
-      <view class="energy-rail">
-        <view class="energy-bar" style="width: {{progNum}}%"></view>
+      <view class="palette-row">
+        <view class="palette-label">亮度</view>
+        <slider class="palette-slider" min="10" max="100" value="{{customBright}}" activeColor="#60a5fa" block-size="14" bindchanging="onBrightChange" bindchange="onBrightChange" />
       </view>
-    </view>
-  </view>
-
-  <!-- 左下角结果提示 -->
-  <view class="diag-layer" wx:if="{{showDiag}}">
-    <view class="report-card-mini">
-      <view class="diag-header">
-        <text class="res-id">ID: {{resId}}</text>
-        <view class="close-btn" bindtap="closeDiag">✕</view>
+      <view class="palette-row">
+        <view class="palette-label">大小</view>
+        <slider class="palette-slider" min="10" max="100" value="{{customSize}}" activeColor="#60a5fa" block-size="14" bindchanging="onSizeChange" bindchange="onSizeChange" />
       </view>
-      
-      <view class="diag-title-row">
-        <view class="diag-icon">💧</view>
-        <view class="diag-title">深海的静谧回响</view>
-      </view>
-
-      <view class="diag-desc">
-        “你的划动如潮汐般有规律。在这种深蓝的静谧中，你正在找回失去的秩序感。”
-      </view>
-
-      <button class="btn-pay-mini" bindtap="payUnlock">
-        解锁数字资产 (¥9.9)
-      </button>
     </view>
   </view>
 </view>
