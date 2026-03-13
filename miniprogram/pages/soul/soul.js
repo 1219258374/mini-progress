@@ -13,9 +13,12 @@ const particleCount = 2000;
 let positions, velocities, colors, orbitRadii, phase;
 let reqId;
 let gravity = { x: 0, y: 0 };
-let ripples = [];
-let vortexCharge = 0; // Accumulates while finger is held down in FINGER_VORTEX mode
-let justReleased = false; // Flag to trigger explosion on touchEnd
+let vortexCharge = 0;
+let justReleased = false;
+let lineSystem = null; // THREE.LineSegments for constellation
+let linePositions = null;
+let particleLife = null; // Float32Array for LIGHT_PAINT fade timers
+let paintIndex = 0; // Round-robin cursor for spawning paint particles
 
 Page({
   data: {
@@ -197,6 +200,26 @@ Page({
     particleSystem = new THREE.Points(geometry, material);
     scene.add(particleSystem);
 
+    // Constellation line system (max 3000 line segments = 6000 vertices)
+    const maxLines = 3000;
+    linePositions = new Float32Array(maxLines * 6);
+    const lineGeo = new THREE.BufferGeometry();
+    lineGeo.addAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+    lineGeo.setDrawRange(0, 0);
+    const lineMat = new THREE.LineBasicMaterial({
+      color: 0x60a5fa,
+      transparent: true,
+      opacity: 0.3,
+      blending: THREE.AdditiveBlending
+    });
+    lineSystem = new THREE.LineSegments(lineGeo, lineMat);
+    lineSystem.visible = false;
+    scene.add(lineSystem);
+
+    // Life timers for LIGHT_PAINT
+    particleLife = new Float32Array(particleCount);
+    for (let i = 0; i < particleCount; i++) particleLife[i] = -1; // -1 = not in paint mode
+
     this._animate();
   },
 
@@ -205,17 +228,29 @@ Page({
     this.setData({ currentMode: mode });
     currentMode = mode;
 
-    const hues = { NEBULA: 0.6, RIPPLE: 0.55, SOLAR: 0.5, FINGER_VORTEX: 0.8, LIQUID_WAVE: 0.48 };
+    const hues = { NEBULA: 0.6, RIPPLE: 0.55, SOLAR: 0.5, FINGER_VORTEX: 0.8, CONSTELLATION: 0.65, LIGHT_PAINT: 0.0 };
     if (particleSystem) {
       const colorAttr = particleSystem.geometry.attributes.color;
-      const newCol = new THREE.Color().setHSL(hues[mode], 0.9, 0.5);
+      const newCol = new THREE.Color().setHSL(hues[mode] || 0.6, 0.9, 0.5);
       for (let i = 0; i < particleCount; i++) {
         colorAttr.array[i * 3] = newCol.r; colorAttr.array[i * 3 + 1] = newCol.g; colorAttr.array[i * 3 + 2] = newCol.b;
       }
       colorAttr.needsUpdate = true;
-      
-      // No longer need meteor shader mode
       particleSystem.material.uniforms.isMeteor.value = 0.0;
+    }
+
+    // Show constellation lines only in CONSTELLATION mode
+    if (lineSystem) lineSystem.visible = (mode === 'CONSTELLATION');
+
+    // Reset paint particles when entering LIGHT_PAINT
+    if (mode === 'LIGHT_PAINT' && particleLife) {
+      const posAttr = particleSystem.geometry.attributes.position;
+      for (let i = 0; i < particleCount; i++) {
+        particleLife[i] = 0; // All start dead (invisible)
+        posAttr.array[i*3+2] = -100; // Push off screen
+      }
+      posAttr.needsUpdate = true;
+      paintIndex = 0;
     }
   },
 
@@ -229,14 +264,6 @@ Page({
     const posAttr = particleSystem.geometry.attributes.position;
     const colorAttr = particleSystem.geometry.attributes.color;
     const time = Date.now() * 0.001;
-
-    // Advance expanding ripples for LIQUID_WAVE
-    if (currentMode === 'LIQUID_WAVE') {
-      for (let r = ripples.length - 1; r >= 0; r--) {
-        ripples[r].time += 0.04; 
-        if (ripples[r].time > 8.0) ripples.splice(r, 1); // Fade out after ~8s (slow expansion)
-      }
-    }
 
     for (let i = 0; i < particleCount; i++) {
       const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
@@ -265,18 +292,19 @@ Page({
       }
       else if (currentMode === 'FINGER_VORTEX') {
         if (isInteracting) {
-          // SUCK IN: particles spiral toward the finger
-          vortexCharge = Math.min(vortexCharge + 0.02, 1.0);
+          // Slowly build up charge for cinematic gathering
+          vortexCharge = Math.min(vortexCharge + 0.005, 1.0);
           
-          const pullStrength = 0.03 + vortexCharge * 0.05;
-          const orbitStrength = 0.04 + vortexCharge * 0.03;
+          // Pull dominates orbit so particles actually spiral IN, not orbit forever
+          const pullStrength = (0.008 + vortexCharge * 0.015) / (dist * 0.3 + 0.5);
+          const orbitStrength = 0.005 + vortexCharge * 0.008;
           
-          if (dist > 0.3) {
-            // Pull toward finger
-            velocities[ix] += (dx / dist) * pullStrength;
-            velocities[iy] += (dy / dist) * pullStrength;
-            
-            // Add perpendicular orbit force for swirling effect
+          // Pull toward finger (always active, no dead zone)
+          velocities[ix] += (dx / (dist + 0.01)) * pullStrength;
+          velocities[iy] += (dy / (dist + 0.01)) * pullStrength;
+          
+          // Gentle perpendicular orbit only at medium distance for spiral effect
+          if (dist > 0.5 && dist < 6.0) {
             velocities[ix] += (-dy / dist) * orbitStrength;
             velocities[iy] += (dx / dist) * orbitStrength;
           }
@@ -293,45 +321,44 @@ Page({
           velocities[iy] += (Math.random() - 0.5) * 0.003;
         }
       }
-      else if (currentMode === 'LIQUID_WAVE') {
-        const lx = posAttr.array[ix];
-        const ly = posAttr.array[iy];
-        let targetZ = 0;
-
-        // Force particles into a tight, dense full-screen grid
+      else if (currentMode === 'CONSTELLATION') {
+        // Static grid: particles settle into position
         const cols = 50;
-        const rows = 40; 
-        const targetX = ((i % cols) / (cols - 1) - 0.5) * 12.0;
-        const targetY = -(Math.floor(i / cols) / (rows - 1) - 0.5) * 16.0;
+        const rows = 40;
+        const gx = ((i % cols) / (cols - 1) - 0.5) * 12.0;
+        const gy = -(Math.floor(i / cols) / (rows - 1) - 0.5) * 16.0;
+        velocities[ix] += (gx - posAttr.array[ix]) * 0.06;
+        velocities[iy] += (gy - posAttr.array[iy]) * 0.06;
+        velocities[ix] *= 0.85; velocities[iy] *= 0.85;
         
-        // Snap strongly to grid so they don't maintain the black-hole circle from Nebula mode
-        velocities[ix] += (targetX - lx) * 0.08;
-        velocities[iy] += (targetY - ly) * 0.08;
-
-        // Calculate superposition of all active propagating ripples
-        for (let r = 0; r < ripples.length; r++) {
-           const rip = ripples[r];
-           const distToRip = Math.sqrt((lx - rip.x)**2 + (ly - rip.y)**2);
-           
-           // Wave expands outward SLOWLY (2.0 units/sec instead of 8.0)
-           const waveRadius = rip.time * 2.0; 
-           const waveWidth = 1.5; // Thickness of the ripple ring
-           const distFromWave = Math.abs(distToRip - waveRadius);
-           
-           if (distFromWave < waveWidth) {
-              // Fade intensity over time (longer lifetime: 6 seconds)
-              const intensity = Math.max(0, 1.0 - rip.time / 6.0);
-              // Gentle sine wave bump in the ring
-              targetZ += Math.sin((1.0 - distFromWave/waveWidth) * Math.PI) * 1.2 * intensity;
-           }
+        // Brighten particles near finger
+        if (isInteracting && dist < 4.0) {
+          const glow = 1.0 - dist / 4.0;
+          const glowColor = new THREE.Color().setHSL(this.data.customHue / 360, 0.9, 0.4 + glow * 0.5);
+          colorAttr.array[ix] = glowColor.r; colorAttr.array[ix+1] = glowColor.g; colorAttr.array[ix+2] = glowColor.b;
         }
-
-        // Smoothly ease Z toward wave height (slower easing for gentleness)
-        posAttr.array[iz] += (targetZ - posAttr.array[iz]) * 0.06;
-
-        // Strip away X/Y sway so the particles look like a completely static field from above
-        velocities[ix] -= velocities[ix] * 0.1;
-        velocities[iy] -= velocities[iy] * 0.1;
+      }
+      else if (currentMode === 'LIGHT_PAINT') {
+        // Particles with life > 0 are active paint splashes
+        if (particleLife[i] > 0) {
+          particleLife[i] -= 0.008; // Fade over ~2 seconds
+          
+          // Slight downward drift + spread
+          velocities[iy] -= 0.002;
+          velocities[ix] *= 0.97; velocities[iy] *= 0.97;
+          
+          posAttr.array[ix] += velocities[ix];
+          posAttr.array[iy] += velocities[iy];
+          
+          // Fade color alpha by reducing brightness
+          const life = Math.max(0, particleLife[i]);
+          const paintColor = new THREE.Color().setHSL(this.data.customHue / 360, 0.9, life * 0.7 + 0.1);
+          colorAttr.array[ix] = paintColor.r; colorAttr.array[ix+1] = paintColor.g; colorAttr.array[ix+2] = paintColor.b;
+          
+          if (particleLife[i] <= 0) {
+            posAttr.array[iz] = -100; // Hide dead particle
+          }
+        }
       }
 
       velocities[ix] *= 0.94; velocities[iy] *= 0.94;
@@ -346,7 +373,7 @@ Page({
       
       posAttr.array[ix] += velocities[ix]; posAttr.array[iy] += velocities[iy];
 
-      if (currentMode !== 'RIPPLE' && currentMode !== 'FINGER_VORTEX' && currentMode !== 'LIQUID_WAVE') {
+      if (currentMode !== 'RIPPLE' && currentMode !== 'FINGER_VORTEX' && currentMode !== 'CONSTELLATION' && currentMode !== 'LIGHT_PAINT') {
         posAttr.array[iz] += Math.sin(time + phase[i]) * 0.002;
       }
 
@@ -364,6 +391,46 @@ Page({
     // Sync particle size uniform from slider
     if (particleSystem) {
       particleSystem.material.uniforms.particleSize.value = 1.0 + (this.data.customSize / 100) * 10.0;
+    }
+
+    // Build constellation lines near finger
+    if (currentMode === 'CONSTELLATION' && lineSystem && isInteracting) {
+      let lineIdx = 0;
+      const maxLinePairs = 3000;
+      const connectRadius = 3.5;
+      const nearParticles = [];
+      
+      // Collect particles near finger
+      for (let i = 0; i < particleCount && nearParticles.length < 120; i++) {
+        const px = posAttr.array[i*3], py = posAttr.array[i*3+1];
+        const d = Math.sqrt((px - target.x)**2 + (py - target.y)**2);
+        if (d < connectRadius) nearParticles.push(i);
+      }
+      
+      // Connect nearby pairs
+      for (let a = 0; a < nearParticles.length && lineIdx < maxLinePairs; a++) {
+        for (let b = a + 1; b < nearParticles.length && lineIdx < maxLinePairs; b++) {
+          const ia = nearParticles[a] * 3, ib = nearParticles[b] * 3;
+          const dd = Math.sqrt((posAttr.array[ia]-posAttr.array[ib])**2 + (posAttr.array[ia+1]-posAttr.array[ib+1])**2);
+          if (dd < 1.5) {
+            linePositions[lineIdx*6]   = posAttr.array[ia];
+            linePositions[lineIdx*6+1] = posAttr.array[ia+1];
+            linePositions[lineIdx*6+2] = posAttr.array[ia+2];
+            linePositions[lineIdx*6+3] = posAttr.array[ib];
+            linePositions[lineIdx*6+4] = posAttr.array[ib+1];
+            linePositions[lineIdx*6+5] = posAttr.array[ib+2];
+            lineIdx++;
+          }
+        }
+      }
+      lineSystem.geometry.setDrawRange(0, lineIdx * 2);
+      lineSystem.geometry.attributes.position.needsUpdate = true;
+      
+      // Update line color from palette
+      const lc = new THREE.Color().setHSL(this.data.customHue / 360, 0.8, 0.6);
+      lineSystem.material.color = lc;
+    } else if (currentMode === 'CONSTELLATION' && lineSystem && !isInteracting) {
+      lineSystem.geometry.setDrawRange(0, 0); // Hide lines when not touching
     }
 
     // Clear the justReleased flag after one frame of explosion
@@ -387,19 +454,32 @@ Page({
   touchStart(e) {
     if (e.touches && e.touches.length > 0) {
       this._updateMouse(e.touches[0].clientX, e.touches[0].clientY);
-      // Drop a new stone in the pond
-      if (currentMode === 'LIQUID_WAVE') {
-        ripples.push({ x: mouse.x, y: mouse.y, time: 0 });
-      }
     }
   },
 
   touchMove(e) {
-    if (e.touches && e.touches.length > 0) this._updateMouse(e.touches[0].clientX, e.touches[0].clientY);
+    if (e.touches && e.touches.length > 0) {
+      this._updateMouse(e.touches[0].clientX, e.touches[0].clientY);
+      
+      // Spray paint particles along finger trail
+      if (currentMode === 'LIGHT_PAINT' && particleSystem && particleLife) {
+        const posAttr = particleSystem.geometry.attributes.position;
+        for (let s = 0; s < 8; s++) { // Spawn 8 particles per frame
+          const idx = paintIndex % particleCount;
+          paintIndex++;
+          posAttr.array[idx*3]   = mouse.x + (Math.random()-0.5) * 0.3;
+          posAttr.array[idx*3+1] = mouse.y + (Math.random()-0.5) * 0.3;
+          posAttr.array[idx*3+2] = (Math.random()-0.5) * 0.5;
+          velocities[idx*3]   = (Math.random()-0.5) * 0.08;
+          velocities[idx*3+1] = (Math.random()-0.5) * 0.08 + 0.02;
+          particleLife[idx] = 1.0;
+        }
+        posAttr.needsUpdate = true;
+      }
+    }
   },
 
   touchEnd(e) {
-    // Trigger explosion in FINGER_VORTEX mode
     if (currentMode === 'FINGER_VORTEX' && isInteracting && vortexCharge > 0.05) {
       justReleased = true;
     }
