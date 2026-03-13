@@ -295,17 +295,17 @@ Page({
       posAttr.needsUpdate = true;
     }
 
-    // FLAME mode: spawn particles in a tight campfire shape
+    // FLAME mode: evenly distributed particles from base upward
     if (mode === 'FLAME' && particleSystem) {
       const posAttr = particleSystem.geometry.attributes.position;
+      const flameH = 8.0, flameBaseY = -2.0;
       for (let i = 0; i < particleCount; i++) {
-        const heightFrac = Math.random();
-        const baseWidth = 2.5 * (1.0 - heightFrac * 0.5); // Wide base, narrows slightly at top
-        posAttr.array[i*3]   = (Math.random() - 0.5) * baseWidth * 2;
-        posAttr.array[i*3+1] = -4.5 + heightFrac * 6;     // -4.5 to +1.5
-        posAttr.array[i*3+2] = (Math.random() - 0.5) * 0.5;
-        velocities[i*3]   = (Math.random() - 0.5) * 0.01;
-        velocities[i*3+1] = 0.003 + Math.random() * 0.01;
+        const h = (i / particleCount); // Evenly spaced vertically
+        const maxW = 1.2 * (1.0 - h * 0.7); // Narrows with height
+        posAttr.array[i*3]   = (Math.random() - 0.5) * maxW * 2;
+        posAttr.array[i*3+1] = flameBaseY + h * flameH + (Math.random() - 0.5) * 0.5;
+        posAttr.array[i*3+2] = (Math.random() - 0.5) * 0.2;
+        velocities[i*3] = 0; velocities[i*3+1] = 0;
         if (particleLife) particleLife[i] = -1;
       }
       posAttr.needsUpdate = true;
@@ -535,56 +535,42 @@ Page({
         continue; // RAIN handles its own physics, skip general update
       }
       else if (currentMode === 'FLAME') {
-        // Wide campfire with smooth fade and finger-attraction
-        const py = posAttr.array[iy];
-        const heightFrac = Math.max(0, Math.min(1, (py + 4.5) / 9)); // 0=bottom, 1=top (taller range)
+        // Position-based flame: constant upward speed, no velocity drift
+        const flameBaseY = -2.0, flameH = 8.0;
         
-        // Gentle centering
-        const centerPull = 0.002 + heightFrac * 0.004;
-        velocities[ix] += -posAttr.array[ix] * centerPull;
+        // Move up at constant speed
+        posAttr.array[iy] += 0.012;
         
-        // Buoyancy
-        velocities[iy] += 0.0008 + (1.0 - heightFrac) * 0.0005;
+        // Height fraction
+        const relY = posAttr.array[iy] - flameBaseY;
+        const heightFrac = Math.max(0, Math.min(1, relY / flameH));
         
-        // Turbulence: stronger with height for organic flame tips
-        velocities[ix] += (Math.random() - 0.5) * (0.005 + heightFrac * 0.01);
+        // X: direct constrain toward center with small noise
+        const maxW = 1.2 * (1.0 - heightFrac * 0.7);
+        posAttr.array[ix] *= 0.97; // Pull toward center (x=0)
+        posAttr.array[ix] += (Math.random() - 0.5) * 0.02; // Tiny flicker
+        // Clamp X
+        if (posAttr.array[ix] > maxW) posAttr.array[ix] = maxW;
+        if (posAttr.array[ix] < -maxW) posAttr.array[ix] = -maxW;
         
-        // Damping
-        velocities[ix] *= 0.96; velocities[iy] *= 0.98;
-        
-        // Finger ATTRACTS flame (fire wraps around your hand)
+        // Finger interaction: attract nearby particles
         if (isInteracting && dist < 3.0) {
-          const attract = (3.0 - dist) * 0.008;
-          velocities[ix] += (dx / (dist + 0.01)) * attract;
-          velocities[iy] += (dy / (dist + 0.01)) * attract;
+          const attract = (3.0 - dist) * 0.03;
+          posAttr.array[ix] += (dx / (dist + 0.01)) * attract;
+          posAttr.array[iy] += (dy / (dist + 0.01)) * attract * 0.5;
         }
         
-        posAttr.array[ix] += velocities[ix];
-        posAttr.array[iy] += velocities[iy];
-        
-        // Respawn at bottom: higher threshold, no visible cutoff
-        if (py > 4.5 || Math.abs(posAttr.array[ix]) > 5) {
-          const bw = 2.5;
-          posAttr.array[ix] = (Math.random() - 0.5) * bw * 2;
-          posAttr.array[iy] = -4.5 + Math.random() * 0.8;
-          posAttr.array[iz] = (Math.random() - 0.5) * 0.5;
-          velocities[ix] = (Math.random() - 0.5) * 0.01;
-          velocities[iy] = 0.003 + Math.random() * 0.01;
+        // Wrap: recycle at top back to bottom
+        if (posAttr.array[iy] > flameBaseY + flameH) {
+          posAttr.array[ix] = (Math.random() - 0.5) * 1.2 * 2;
+          posAttr.array[iy] = flameBaseY + (Math.random() - 0.5) * 0.3;
+          posAttr.array[iz] = (Math.random() - 0.5) * 0.2;
         }
         
-        // Color: smooth fade — white-hot base → orange → dim red tips → invisible at top
-        const fadeFactor = Math.max(0, 1.0 - heightFrac * 1.2); // Fades to 0 at ~83% height
-        const fHue = 0.02 + heightFrac * 0.06;
-        const fSat = 0.9 + (1.0 - heightFrac) * 0.1;
-        const fBright = (0.35 + (1.0 - heightFrac) * 0.5) * fadeFactor;
-        
-        // Glow brighter when near finger
-        let glowBoost = 0;
-        if (isInteracting && dist < 3.0) {
-          glowBoost = (3.0 - dist) / 3.0 * 0.3;
-        }
-        
-        const flameColor = new THREE.Color().setHSL(fHue, fSat, Math.min(0.9, fBright + glowBoost));
+        // Color: warm gradient
+        const fHue = 0.02 + heightFrac * 0.08;
+        const fBright = 0.3 + (1.0 - heightFrac) * 0.55;
+        const flameColor = new THREE.Color().setHSL(fHue, 1.0, Math.min(0.85, fBright));
         colorAttr.array[ix] = flameColor.r; colorAttr.array[ix+1] = flameColor.g; colorAttr.array[ix+2] = flameColor.b;
         continue;
       }
