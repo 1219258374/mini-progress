@@ -8,18 +8,21 @@ let target = { x: 0, y: 0 };
 let energy = 0, isInteracting = false;
 let currentMode = 'NEBULA';
 
-// Reduced density to ensure smooth playback on mobile mini-programs
-const particleCount = 2000;
+// Total allocated capacity buffer (100%)
+const particleCount = 6666;
+// Default active particles (30% of 6666 is ~2000)
+let activeParticleCount = 2000;
 let positions, velocities, colors, orbitRadii, phase;
 let reqId;
-let gravity = { x: 0, y: 0 };
 let vortexCharge = 0;
 let justReleased = false;
 let lineSystem = null;
 let linePositions = null;
 let particleLife = null;
 let paintIndex = 0;
-let lastMouse = { x: 0, y: 0 }; // Track previous finger position for drag velocity
+let lastMouse = { x: 0, y: 0 }; 
+let rippleTime = 0;
+let rippleOrigin = { x: 0, y: 0 };
 
 Page({
   data: {
@@ -31,7 +34,8 @@ Page({
     showPalette: false,
     customHue: 220,
     customBright: 50,
-    customSize: 50
+    customSize: 50,
+    customCount: 30
   },
 
   onLoad(options) {
@@ -110,8 +114,12 @@ Page({
     THREE = createScopedThreejs(canvas);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    const info = wx.getSystemInfoSync();
-    renderer.setPixelRatio(Math.min(info.pixelRatio, 2));
+    let pixelRatio = 2;
+    try {
+      const info = wx.getSystemInfoSync();
+      pixelRatio = info.pixelRatio;
+    } catch(e) {}
+    renderer.setPixelRatio(Math.min(pixelRatio, 2));
     renderer.setSize(canvas.width, canvas.height);
     renderer.setClearColor(0x000000, 0); // Transparent so CSS gradient shows through
 
@@ -200,6 +208,8 @@ Page({
     });
 
     particleSystem = new THREE.Points(geometry, material);
+    // Only render activeParticleCount particles (not the full buffer)
+    geometry.setDrawRange(0, activeParticleCount);
     scene.add(particleSystem);
 
     // Constellation line system (max 3000 line segments = 6000 vertices)
@@ -235,26 +245,41 @@ Page({
     };
     const newHueDeg = defaultHues[mode] || 216;
     this.setData({ currentMode: mode, customHue: newHueDeg });
+    const previousMode = currentMode; // Save BEFORE overwriting
     currentMode = mode;
 
     const hues = { NEBULA: 0.6, RIPPLE: 0.67, TIDAL: 0.49, FINGER_VORTEX: 0.75, FIREWORKS: 0.1, LIGHT_PAINT: 0.92, KALEIDOSCOPE: 0.0, LASER: 0.51, RAIN: 0.58, FLAME: 0.04 };
+    const needsReset = (mode !== previousMode);
     if (particleSystem) {
+      // CLEAR ANY ACCUMULATED ROTATION FROM PREVIOUS MODES
+      particleSystem.rotation.x = 0;
+      particleSystem.rotation.y = 0;
+      particleSystem.rotation.z = 0;
+      // Ensure draw range matches active count
+      particleSystem.geometry.setDrawRange(0, activeParticleCount);
+      
       const posAttr = particleSystem.geometry.attributes.position;
       const colorAttr = particleSystem.geometry.attributes.color;
       const newCol = new THREE.Color().setHSL(hues[mode] || 0.6, 0.9, 0.5);
 
-      // When leaving LIGHT_PAINT, particles are at z=-100 and need full reset
-      const needsReset = (mode !== 'LIGHT_PAINT') && particleLife && particleLife[0] !== -1;
-
-      for (let i = 0; i < particleCount; i++) {
+      for (let i = 0; i < activeParticleCount; i++) {
         colorAttr.array[i * 3] = newCol.r; colorAttr.array[i * 3 + 1] = newCol.g; colorAttr.array[i * 3 + 2] = newCol.b;
         
         if (needsReset) {
-          posAttr.array[i*3]   = (Math.random() - 0.5) * 20;
-          posAttr.array[i*3+1] = (Math.random() - 0.5) * 20;
-          posAttr.array[i*3+2] = (Math.random() - 0.5) * 5;
+          const isPoolMode = (mode === 'LIGHT_PAINT' || mode === 'FIREWORKS' || mode === 'KALEIDOSCOPE' || mode === 'LASER');
+          if (isPoolMode) {
+            // Pool modes: hide until user touches screen
+            posAttr.array[i*3]   = 9999;
+            posAttr.array[i*3+1] = 9999;
+            posAttr.array[i*3+2] = 9999;
+          } else {
+            // Physics modes: scatter randomly on screen
+            posAttr.array[i*3]   = (Math.random() - 0.5) * 20;
+            posAttr.array[i*3+1] = (Math.random() - 0.5) * 20;
+            posAttr.array[i*3+2] = (Math.random() - 0.5) * 5;
+          }
           velocities[i*3] = 0; velocities[i*3+1] = 0;
-          particleLife[i] = -1;
+          if (particleLife) particleLife[i] = isPoolMode ? 0 : -1;
         }
       }
       colorAttr.needsUpdate = true;
@@ -265,26 +290,58 @@ Page({
     // Hide line system (no mode uses it anymore)
     if (lineSystem) lineSystem.visible = false;
 
-    // Reset particles for pool-based modes
+    // Reset particles for pool-based modes    // Initialize particle arrays (reset everything dead if needed)
     if ((mode === 'LIGHT_PAINT' || mode === 'FIREWORKS' || mode === 'KALEIDOSCOPE' || mode === 'LASER') && particleLife) {
       const posAttr = particleSystem.geometry.attributes.position;
       const colorAttr = particleSystem.geometry.attributes.color;
-      for (let i = 0; i < particleCount; i++) {
-        particleLife[i] = 0;
-        posAttr.array[i*3]   = 9999;
-        posAttr.array[i*3+1] = 9999;
-        posAttr.array[i*3+2] = 9999;
-        colorAttr.array[i*3] = 0; colorAttr.array[i*3+1] = 0; colorAttr.array[i*3+2] = 0;
+
+      // Only reset life counters if transitioning FROM another mode
+      if (needsReset) {
+        for (let i = 0; i < activeParticleCount; i++) {
+          particleLife[i] = 0; // 0 means ready to be spawned
+
+          posAttr.array[i*3]   = 9999;
+          posAttr.array[i*3+1] = 9999;
+          posAttr.array[i*3+2] = 9999;
+          colorAttr.array[i*3] = 0; colorAttr.array[i*3+1] = 0; colorAttr.array[i*3+2] = 0;
+        }
+        posAttr.needsUpdate = true;
+        colorAttr.needsUpdate = true;
+        paintIndex = 0;
+      }
+    }
+
+    // NEBULA mode: default random orbits
+    if (mode === 'NEBULA' && particleSystem && needsReset) {
+      const posAttr = particleSystem.geometry.attributes.position;
+      for (let i = 0; i < activeParticleCount; i++) {
+        posAttr.array[i*3]   = (Math.random() - 0.5) * 20;
+        posAttr.array[i*3+1] = (Math.random() - 0.5) * 20;
+        posAttr.array[i*3+2] = (Math.random() - 0.5) * 5;
+        velocities[i*3] = 0; velocities[i*3+1] = 0;
       }
       posAttr.needsUpdate = true;
-      colorAttr.needsUpdate = true;
-      paintIndex = 0;
+    }
+
+    // TIDAL mode: massive slow spiral
+    if (mode === 'TIDAL' && particleSystem) {
+      const posAttr = particleSystem.geometry.attributes.position;
+      for (let i = 0; i < activeParticleCount; i++) {
+        const radius = orbitRadii[i] * 3.0; // wider spread
+        const angle = Math.random() * Math.PI * 2;
+        posAttr.array[i*3]   = Math.cos(angle) * radius;
+        posAttr.array[i*3+1] = Math.sin(angle) * radius;
+        posAttr.array[i*3+2] = (Math.random() - 0.5) * 5;
+        velocities[i*3] = 0; velocities[i*3+1] = 0;
+        if (particleLife) particleLife[i] = -1;
+      }
+      posAttr.needsUpdate = true;
     }
 
     // RAIN mode: scatter particles at top of screen
     if (mode === 'RAIN' && particleSystem) {
       const posAttr = particleSystem.geometry.attributes.position;
-      for (let i = 0; i < particleCount; i++) {
+      for (let i = 0; i < activeParticleCount; i++) {
         posAttr.array[i*3]   = (Math.random() - 0.5) * 16;
         posAttr.array[i*3+1] = -5 + Math.random() * 15;  // Start near/within visible area
         posAttr.array[i*3+2] = (Math.random() - 0.5) * 2;
@@ -295,17 +352,21 @@ Page({
       posAttr.needsUpdate = true;
     }
 
-    // FLAME mode: evenly distributed particles from base upward
+    // FLAME mode: spawn uniformly in a cone shape
     if (mode === 'FLAME' && particleSystem) {
       const posAttr = particleSystem.geometry.attributes.position;
-      const flameH = 8.0, flameBaseY = -2.0;
-      for (let i = 0; i < particleCount; i++) {
-        const h = (i / particleCount); // Evenly spaced vertically
-        const maxW = 1.2 * (1.0 - h * 0.7); // Narrows with height
+      const flameH = 9.0, flameBaseY = -3.5;
+      for (let i = 0; i < activeParticleCount; i++) {
+        // Uniform distribution over height
+        const h = Math.random();
+        // Wider at bottom (2.5), holds width longer (1.2 power)
+        const maxW = 2.5 * (1.0 - Math.pow(h, 1.2));
         posAttr.array[i*3]   = (Math.random() - 0.5) * maxW * 2;
-        posAttr.array[i*3+1] = flameBaseY + h * flameH + (Math.random() - 0.5) * 0.5;
-        posAttr.array[i*3+2] = (Math.random() - 0.5) * 0.2;
-        velocities[i*3] = 0; velocities[i*3+1] = 0;
+        posAttr.array[i*3+1] = flameBaseY + h * flameH;
+        posAttr.array[i*3+2] = (Math.random() - 0.5) * 0.5;
+        // Start with some upward velocity
+        velocities[i*3]   = (Math.random() - 0.5) * 0.005;
+        velocities[i*3+1] = 0.005 + Math.random() * 0.01;
         if (particleLife) particleLife[i] = -1;
       }
       posAttr.needsUpdate = true;
@@ -323,7 +384,7 @@ Page({
     const colorAttr = particleSystem.geometry.attributes.color;
     const time = Date.now() * 0.001;
 
-    for (let i = 0; i < particleCount; i++) {
+    for (let i = 0; i < activeParticleCount; i++) {
       const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
       const dx = target.x - posAttr.array[ix], dy = target.y - posAttr.array[iy];
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -335,11 +396,43 @@ Page({
         velocities[iy] += Math.sin(angle) * error * 0.0025;
       }
       else if (currentMode === 'RIPPLE') {
-        const wave = Math.sin(dist * 2 - time * 5) * 0.02;
-        posAttr.array[iz] += (wave - posAttr.array[iz]) * 0.1;
-        const push = Math.max(0, (1.5 - dist) * 0.005);
-        velocities[ix] -= Math.cos(angle) * push;
-        velocities[iy] -= Math.sin(angle) * push;
+        const px = posAttr.array[ix], py = posAttr.array[iy];
+        // Calculate distance from the interactive ripple origin
+        const rdx = rippleOrigin.x - px;
+        const rdy = rippleOrigin.y - py;
+        const rDist = Math.sqrt(rdx*rdx + rdy*rdy);
+        
+        let targetZ = 0;
+        
+        if (rippleTime > 0) {
+          // An expanding ring of influence
+          const waveRadius = rippleTime * 8.0; 
+          const ringThickness = 1.5;
+          const distFromRing = Math.abs(rDist - waveRadius);
+          
+          if (distFromRing < ringThickness) {
+            // Ripple wave function
+            const strength = (1.0 - (distFromRing / ringThickness)) * Math.max(0, 1.0 - rippleTime * 0.3);
+            targetZ = Math.sin((distFromRing - waveRadius) * 4) * 2.5 * strength;
+            
+            // X/Y displacement (pushes particles slightly outward then inward)
+            velocities[ix] -= (rdx / (rDist + 0.01)) * strength * 0.005;
+            velocities[iy] -= (rdy / (rDist + 0.01)) * strength * 0.005;
+          }
+        }
+        
+        // Base sine wave over entire field
+        const baseWave = Math.sin(dist * 2 - time * 2) * 0.1;
+        targetZ += baseWave;
+        
+        // Spring Z towards target
+        posAttr.array[iz] += (targetZ - posAttr.array[iz]) * 0.1;
+        
+        // Friction and gentle return to original orbit (dist=orbitRadii)
+        velocities[ix] *= 0.95; velocities[iy] *= 0.95;
+        const radialError = dist - orbitRadii[i];
+        velocities[ix] += Math.cos(angle) * radialError * 0.001;
+        velocities[iy] += Math.sin(angle) * radialError * 0.001;
       }
       else if (currentMode === 'TIDAL') {
         // Breathing/pulse: particles expand and contract rhythmically
@@ -535,42 +628,78 @@ Page({
         continue; // RAIN handles its own physics, skip general update
       }
       else if (currentMode === 'FLAME') {
-        // Position-based flame: absolute X, no accumulation possible
-        const flameBaseY = -2.0, flameH = 8.0;
+        const flameBaseY = -3.5, flameH = 9.0, baseX = 0;
         
-        // Move up at constant speed
-        posAttr.array[iy] += 0.012;
+        const py = posAttr.array[iy];
+        const px = posAttr.array[ix];
         
-        // Height fraction
-        const relY = posAttr.array[iy] - flameBaseY;
+        // Height fraction: 0 at base, 1 at tip
+        const relY = py - flameBaseY;
         const heightFrac = Math.max(0, Math.min(1, relY / flameH));
         
-        // X: compute ABSOLUTE position each frame (zero drift)
-        const maxW = 1.2 * (1.0 - heightFrac * 0.7);
-        const flicker = Math.sin(time * 3.0 + phase[i] * 10.0) * 0.3 
-                       + Math.sin(time * 7.0 + phase[i] * 20.0) * 0.15;
-        posAttr.array[ix] = flicker * maxW + (Math.random() - 0.5) * 0.01;
+        // --- PHYSICS ---
+        // Steady upward buoyancy to prevent density gaps
+        velocities[iy] += 0.001; 
         
-        // Interaction: finger near flame SCATTERS particles (poke embers)
-        if (isInteracting && dist < 2.0) {
-          const push = (2.0 - dist) * 0.15;
-          posAttr.array[ix] -= (dx / (dist + 0.01)) * push;
-          posAttr.array[iy] -= (dy / (dist + 0.01)) * push * 0.3;
+        // Organic horizontal turbulence
+        velocities[ix] += (Math.random() - 0.5) * 0.004;
+        
+        // HARD X-CONSTRAINT: The flame profile is a cone (wide base, narrow top)
+        const profileWidth = 2.5 * (1.0 - Math.pow(heightFrac, 1.2));
+        
+        // Strong pull toward center depending on how far it strayed from the profile
+        const distFromCenter = px - baseX;
+        velocities[ix] -= distFromCenter * 0.015; // Elastic centering
+        
+        // Damping
+        velocities[ix] *= 0.94; velocities[iy] *= 0.98;
+        
+        // --- INTERACTION: Smooth Wind Push ---
+        // Finger pushes flame away softly, based on 2D distance
+        if (isInteracting) {
+          const dxFinger = px - mouse.x;
+          const dyFinger = py - mouse.y;
+          const distToFinger = Math.sqrt(dxFinger*dxFinger + dyFinger*dyFinger);
+          
+          if (distToFinger < 2.5) {
+            // Gentle push, stronger when closer (halved from before)
+            const pushForce = (2.5 - distToFinger) * 0.003;
+            // Push horizontally away from finger
+            velocities[ix] += (dxFinger / (distToFinger + 0.01)) * pushForce;
+          }
         }
         
-        // Wrap: recycle at top back to bottom
-        if (posAttr.array[iy] > flameBaseY + flameH) {
-          posAttr.array[ix] = (Math.random() - 0.5) * 1.2 * 2;
-          posAttr.array[iy] = flameBaseY + (Math.random() - 0.5) * 0.3;
-          posAttr.array[iz] = (Math.random() - 0.5) * 0.2;
+        // Apply velocities
+        posAttr.array[ix] += velocities[ix];
+        posAttr.array[iy] += velocities[iy];
+        
+        // Clamp X to absolutely guarantee no drifting beyond the profile
+        const currentRelX = posAttr.array[ix] - baseX;
+        // Allow slightly more width during interaction to let the wind bend it
+        const maxAllowedW = isInteracting ? profileWidth * 1.5 + 1.0 : profileWidth * 1.2 + 0.2;
+        if (currentRelX > maxAllowedW) posAttr.array[ix] = baseX + maxAllowedW;
+        if (currentRelX < -maxAllowedW) posAttr.array[ix] = baseX - maxAllowedW;
+        
+        // --- RECYCLE & RESPAWN ---
+        // Respawn exactly at base to maintain steady stream
+        if (relY > flameH || py < flameBaseY - 1.0) {
+          const w = 2.5; // Base width
+          posAttr.array[ix] = baseX + (Math.random() - 0.5) * w * 1.5;
+          posAttr.array[iy] = flameBaseY + (Math.random() - 0.5) * 0.2;
+          posAttr.array[iz] = (Math.random() - 0.5) * 0.5;
+          velocities[ix] = (Math.random() - 0.5) * 0.005;
+          velocities[iy] = 0.005 + Math.random() * 0.01;
         }
         
-        // Color: warm gradient
-        const fHue = 0.02 + heightFrac * 0.08;
-        const fBright = 0.3 + (1.0 - heightFrac) * 0.55;
-        const flameColor = new THREE.Color().setHSL(fHue, 1.0, Math.min(0.85, fBright));
+        // --- VISUALS ---
+        const fadeFactor = Math.max(0, 1.0 - Math.pow(heightFrac, 1.5)); // Fades smoothly near top
+        const baseHue = this.data.customHue / 360; // Use user selected color
+        const fHue = baseHue + heightFrac * 0.08; // Shift hue slightly as it rises
+        const fBright = (0.2 + (1.0 - heightFrac) * 0.6) * fadeFactor;
+        const flameColor = new THREE.Color().setHSL(fHue, 1.0, fBright);
         colorAttr.array[ix] = flameColor.r; colorAttr.array[ix+1] = flameColor.g; colorAttr.array[ix+2] = flameColor.b;
-        continue; // Critical: skip general position/color updates
+        
+        continue; // CRITICAL: Stop general physics from breaking it
       }
 
       velocities[ix] *= 0.94; velocities[iy] *= 0.94;
@@ -612,7 +741,12 @@ Page({
       vortexCharge = 0;
     }
 
-    // Only rotate the global system for orbital modes
+    // Ripple progression
+    if (rippleTime > 0) {
+      rippleTime += 0.016;
+      if (rippleTime > 4.0) rippleTime = 0;
+    }
+
     if (currentMode !== 'FLAME' && currentMode !== 'RAIN' && currentMode !== 'LASER') {
       particleSystem.rotation.z += 0.0001;
     }
@@ -624,14 +758,19 @@ Page({
     isInteracting = true;
     lastMouse.x = mouse.x;
     lastMouse.y = mouse.y;
-    const info = wx.getSystemInfoSync();
+    let winW = 375, winH = 812;
+    try {
+      const info = wx.getSystemInfoSync();
+      winW = info.windowWidth;
+      winH = info.windowHeight;
+    } catch(e) {}
     // Compute exact visible world-space area from camera frustum
     const fovRad = (75 / 2) * Math.PI / 180; // half FOV in radians
     const halfH = Math.tan(fovRad) * 6; // camera.position.z = 6
-    const aspect = info.windowWidth / info.windowHeight;
+    const aspect = winW / winH;
     const halfW = halfH * aspect;
-    mouse.x = ((x / info.windowWidth) * 2 - 1) * halfW;
-    mouse.y = (-(y / info.windowHeight) * 2 + 1) * halfH;
+    mouse.x = ((x / winW) * 2 - 1) * halfW;
+    mouse.y = (-(y / winH) * 2 + 1) * halfH;
   },
 
   touchStart(e) {
@@ -642,7 +781,7 @@ Page({
       if (currentMode === 'FIREWORKS' && particleSystem && particleLife) {
         const posAttr = particleSystem.geometry.attributes.position;
         for (let s = 0; s < 80; s++) {
-          const idx = paintIndex % particleCount;
+          const idx = paintIndex % activeParticleCount;
           paintIndex++;
           const burstAngle = Math.random() * Math.PI * 2;
           const burstSpeed = 0.05 + Math.random() * 0.15;
@@ -655,6 +794,13 @@ Page({
         }
         posAttr.needsUpdate = true;
       }
+      
+      // RIPPLE: trigger water drop
+      if (currentMode === 'RIPPLE') {
+        rippleTime = 0.01;
+        rippleOrigin.x = mouse.x;
+        rippleOrigin.y = mouse.y;
+      }
     }
   },
 
@@ -665,15 +811,18 @@ Page({
       // Spray paint particles along finger trail
       if (currentMode === 'LIGHT_PAINT' && particleSystem && particleLife) {
         const posAttr = particleSystem.geometry.attributes.position;
-        for (let s = 0; s < 8; s++) {
-          const idx = paintIndex % particleCount;
-          paintIndex++;
+        if (isInteracting) {
+          // Spawn multiple particles per frame for continuous stroke
+          for (let s = 0; s < 5; s++) {
+            const idx = paintIndex % activeParticleCount;
+            paintIndex++;
           posAttr.array[idx*3]   = mouse.x + (Math.random()-0.5) * 0.3;
           posAttr.array[idx*3+1] = mouse.y + (Math.random()-0.5) * 0.3;
           posAttr.array[idx*3+2] = (Math.random()-0.5) * 0.5;
           velocities[idx*3]   = (Math.random()-0.5) * 0.08;
           velocities[idx*3+1] = (Math.random()-0.5) * 0.08 + 0.02;
           particleLife[idx] = 1.0;
+          }
         }
         posAttr.needsUpdate = true;
       }
@@ -686,7 +835,7 @@ Page({
           const rx = mouse.x + (Math.random()-0.5) * 0.15;
           const ry = mouse.y + (Math.random()-0.5) * 0.15;
           for (let f = 0; f < folds; f++) {
-            const idx = paintIndex % particleCount;
+            const idx = paintIndex % activeParticleCount;
             paintIndex++;
             const rotAngle = (Math.PI * 2 / folds) * f;
             const cos = Math.cos(rotAngle), sin = Math.sin(rotAngle);
@@ -712,7 +861,7 @@ Page({
         if (dirLen > 0.01) {
           const ndx = dirX / dirLen, ndy = dirY / dirLen;
           for (let s = 0; s < 10; s++) {
-            const idx = paintIndex % particleCount;
+            const idx = paintIndex % activeParticleCount;
             paintIndex++;
             posAttr.array[idx*3]   = mouse.x + (Math.random()-0.5) * 0.05;
             posAttr.array[idx*3+1] = mouse.y + (Math.random()-0.5) * 0.05;
@@ -733,6 +882,24 @@ Page({
       justReleased = true;
     }
     isInteracting = false;
+
+    // LASER: burst explosion
+    if (currentMode === 'LASER' && particleSystem && particleLife) {
+      const posAttr = particleSystem.geometry.attributes.position;
+      for (let s = 0; s < 50; s++) {
+        const idx = paintIndex % activeParticleCount;
+        paintIndex++;
+        posAttr.array[idx*3]   = mouse.x + (Math.random()-0.5) * 0.05;
+        posAttr.array[idx*3+1] = mouse.y + (Math.random()-0.5) * 0.05;
+        posAttr.array[idx*3+2] = 0;
+        const speed = 0.1 + Math.random() * 0.1;
+        const angle = Math.random() * Math.PI * 2;
+        velocities[idx*3]   = Math.cos(angle) * speed;
+        velocities[idx*3+1] = Math.sin(angle) * speed;
+        particleLife[idx] = 0.8 + Math.random() * 0.4;
+      }
+      posAttr.needsUpdate = true;
+    }
   },
 
   closeDiag() {
@@ -759,5 +926,23 @@ Page({
 
   onSizeChange(e) {
     this.setData({ customSize: e.detail.value });
+  },
+
+  onCountChange(e) {
+    const val = e.detail.value;
+    this.setData({ customCount: val });
+    activeParticleCount = Math.floor((val / 100) * particleCount);
+    // Ensure at least 10 particles so it doesn't break
+    if (activeParticleCount < 10) activeParticleCount = 10;
+    
+    if (particleSystem) {
+      particleSystem.geometry.setDrawRange(0, activeParticleCount);
+    }
+    // Re-initialize theme to fill the newly active particles properly
+    if (val > this.data.customCount) {
+       // if we wanted to dynamically resync, we could call setTheme here. 
+       // but just letting them flow in naturally is often fine. Right now re-init is safer if density jumps up
+       this.setTheme({ currentTarget: { dataset: { mode: currentMode } } });
+    }
   }
 })

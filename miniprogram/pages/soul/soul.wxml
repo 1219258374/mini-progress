@@ -69,6 +69,10 @@
         <view class="palette-label">大小</view>
         <slider class="palette-slider" min="10" max="100" value="{{customSize}}" activeColor="#60a5fa" block-size="14" bindchanging="onSizeChange" bindchange="onSizeChange" />
       </view>
+      <view class="palette-row">
+        <view class="palette-label">数量</view>
+        <slider class="palette-slider" min="10" max="100" value="{{customCount}}" activeColor="#60a5fa" block-size="14" bindchanging="onCountChange" bindchange="onCountChange" />
+      </view>
     </view>
   </view>
 </view>
