@@ -279,7 +279,7 @@ Page({
       const posAttr = particleSystem.geometry.attributes.position;
       for (let i = 0; i < particleCount; i++) {
         posAttr.array[i*3]   = (Math.random() - 0.5) * 16;
-        posAttr.array[i*3+1] = 10 + Math.random() * 15;  // Stagger above screen
+        posAttr.array[i*3+1] = -5 + Math.random() * 15;  // Start near/within visible area
         posAttr.array[i*3+2] = (Math.random() - 0.5) * 2;
         velocities[i*3]   = 0;
         velocities[i*3+1] = -(0.02 + Math.random() * 0.04); // Downward speed
@@ -462,8 +462,8 @@ Page({
       else if (currentMode === 'LASER') {
         // Pool-based: fast-moving laser particles fade
         if (particleLife[i] > 0) {
-          particleLife[i] -= 0.012;
-          velocities[ix] *= 0.99; velocities[iy] *= 0.99;
+          particleLife[i] -= 0.004;
+          velocities[ix] *= 0.98; velocities[iy] *= 0.98;
           posAttr.array[ix] += velocities[ix];
           posAttr.array[iy] += velocities[iy];
           
@@ -559,9 +559,13 @@ Page({
     lastMouse.x = mouse.x;
     lastMouse.y = mouse.y;
     const info = wx.getSystemInfoSync();
-    mouse.x = (x / info.windowWidth) * 2 - 1;
-    mouse.y = -(y / info.windowHeight) * 2 + 1;
-    mouse.x *= 7.5; mouse.y *= 5.5;
+    // Compute exact visible world-space area from camera frustum
+    const fovRad = (75 / 2) * Math.PI / 180; // half FOV in radians
+    const halfH = Math.tan(fovRad) * 6; // camera.position.z = 6
+    const aspect = info.windowWidth / info.windowHeight;
+    const halfW = halfH * aspect;
+    mouse.x = ((x / info.windowWidth) * 2 - 1) * halfW;
+    mouse.y = (-(y / info.windowHeight) * 2 + 1) * halfH;
   },
 
   touchStart(e) {
@@ -647,10 +651,10 @@ Page({
             posAttr.array[idx*3]   = mouse.x + (Math.random()-0.5) * 0.05;
             posAttr.array[idx*3+1] = mouse.y + (Math.random()-0.5) * 0.05;
             posAttr.array[idx*3+2] = 0;
-            const speed = 0.2 + Math.random() * 0.15;
-            velocities[idx*3]   = ndx * speed + (Math.random()-0.5) * 0.02;
-            velocities[idx*3+1] = ndy * speed + (Math.random()-0.5) * 0.02;
-            particleLife[idx] = 0.5 + Math.random() * 0.3;
+            const speed = 0.05 + Math.random() * 0.05;
+            velocities[idx*3]   = ndx * speed + (Math.random()-0.5) * 0.01;
+            velocities[idx*3+1] = ndy * speed + (Math.random()-0.5) * 0.01;
+            particleLife[idx] = 1.5 + Math.random() * 0.5;
           }
           posAttr.needsUpdate = true;
         }

@@ -3,10 +3,6 @@
   <canvas type="webgl" id="webgl" style="width: 100%; height: 100vh; position: absolute; left: 0; top: 0; z-index: 0;" bindtouchstart="touchStart" bindtouchmove="touchMove" bindtouchend="touchEnd"></canvas>
 
   <view class="ui-layer">
-    <!-- Top Info -->
-    <view class="top-info">
-      <view class="glass-pill outfit tracking-widest text-blue-400">BLUEPRINT // LAB V3.3</view>
-    </view>
 
     <!-- 底部导航栏 -->
     <view class="bottom-nav">
