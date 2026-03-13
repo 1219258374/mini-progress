@@ -26,9 +26,9 @@
         <view class="nav-dot" style="background: #a855f7;"></view>
         <text class="nav-label">黑洞</text>
       </view>
-      <view class="nav-item {{currentMode === 'CONSTELLATION' ? 'active' : ''}}" bindtap="setTheme" data-mode="CONSTELLATION">
-        <view class="nav-dot" style="background: #2dd4bf;"></view>
-        <text class="nav-label">星座</text>
+      <view class="nav-item {{currentMode === 'FIREWORKS' ? 'active' : ''}}" bindtap="setTheme" data-mode="FIREWORKS">
+        <view class="nav-dot" style="background: #f59e0b;"></view>
+        <text class="nav-label">烟花</text>
       </view>
       <view class="nav-item {{currentMode === 'LIGHT_PAINT' ? 'active' : ''}}" bindtap="setTheme" data-mode="LIGHT_PAINT">
         <view class="nav-dot" style="background: #f43f5e;"></view>

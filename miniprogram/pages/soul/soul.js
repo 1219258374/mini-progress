@@ -230,7 +230,7 @@ Page({
     this.setData({ currentMode: mode });
     currentMode = mode;
 
-    const hues = { NEBULA: 0.6, RIPPLE: 0.55, TIDAL: 0.5, FINGER_VORTEX: 0.8, CONSTELLATION: 0.65, LIGHT_PAINT: 0.0 };
+    const hues = { NEBULA: 0.6, RIPPLE: 0.55, TIDAL: 0.5, FINGER_VORTEX: 0.8, FIREWORKS: 0.08, LIGHT_PAINT: 0.0 };
     if (particleSystem) {
       const posAttr = particleSystem.geometry.attributes.position;
       const colorAttr = particleSystem.geometry.attributes.color;
@@ -255,11 +255,11 @@ Page({
       particleSystem.material.uniforms.isMeteor.value = 0.0;
     }
 
-    // Show constellation lines only in CONSTELLATION mode
-    if (lineSystem) lineSystem.visible = (mode === 'CONSTELLATION');
+    // Hide line system (no mode uses it anymore)
+    if (lineSystem) lineSystem.visible = false;
 
-    // Reset paint particles when entering LIGHT_PAINT
-    if (mode === 'LIGHT_PAINT' && particleLife) {
+    // Reset particles for pool-based modes (LIGHT_PAINT and FIREWORKS)
+    if ((mode === 'LIGHT_PAINT' || mode === 'FIREWORKS') && particleLife) {
       const posAttr = particleSystem.geometry.attributes.position;
       const colorAttr = particleSystem.geometry.attributes.color;
       for (let i = 0; i < particleCount; i++) {
@@ -363,59 +363,76 @@ Page({
           velocities[iy] += (Math.random() - 0.5) * 0.003;
         }
       }
-      else if (currentMode === 'CONSTELLATION') {
-        // Flatten Z
-        posAttr.array[iz] += (0 - posAttr.array[iz]) * 0.1;
-        
-        // Home position in grid
-        const homeX = ((i % 50) / 49 - 0.5) * 14.0;
-        const homeY = -(Math.floor(i / 50) / 39 - 0.5) * 18.0;
-        
-        if (isInteracting && dist < 3.5) {
-          // MAGNETIC DRAG: apply finger's movement delta to nearby particles
-          const fingerVx = mouse.x - lastMouse.x;
-          const fingerVy = mouse.y - lastMouse.y;
-          const influence = (3.5 - dist) / 3.5; // 1.0 at center, 0 at edge
-          velocities[ix] += fingerVx * influence * 0.5;
-          velocities[iy] += fingerVy * influence * 0.5;
+      else if (currentMode === 'FIREWORKS') {
+        // Firework particles: burst outward, gravity pull down, fade
+        if (particleLife[i] > 0) {
+          particleLife[i] -= 0.006; // Fade over ~2.5s
           
-          // Glow feedback
-          const glow = influence;
-          const glowColor = new THREE.Color().setHSL(this.data.customHue / 360, 0.95, 0.3 + glow * 0.6);
-          colorAttr.array[ix] = glowColor.r; colorAttr.array[ix+1] = glowColor.g; colorAttr.array[ix+2] = glowColor.b;
+          // Gravity
+          velocities[iy] -= 0.003;
+          // Air drag
+          velocities[ix] *= 0.985; velocities[iy] *= 0.985;
+          
+          posAttr.array[ix] += velocities[ix];
+          posAttr.array[iy] += velocities[iy];
+          
+          // Color: warm hue shift as it fades (gold → orange → red → dim)
+          const life = Math.max(0, particleLife[i]);
+          const fwHue = this.data.customHue / 360 + (1.0 - life) * 0.05;
+          const fwColor = new THREE.Color().setHSL(fwHue, 0.95, life * 0.8 + 0.05);
+          colorAttr.array[ix] = fwColor.r; colorAttr.array[ix+1] = fwColor.g; colorAttr.array[ix+2] = fwColor.b;
+          
+          if (particleLife[i] <= 0) {
+            posAttr.array[ix] = 9999;
+            posAttr.array[iy] = 9999;
+            posAttr.array[iz] = 9999;
+            colorAttr.array[ix] = 0; colorAttr.array[ix+1] = 0; colorAttr.array[ix+2] = 0;
+          }
         } else {
-          // SPRING BACK: slowly return to home position
-          velocities[ix] += (homeX - posAttr.array[ix]) * 0.02;
-          velocities[iy] += (homeY - posAttr.array[iy]) * 0.02;
+          // Ambient sparkle (same as LIGHT_PAINT)
+          if (Math.random() < 0.0005) {
+            posAttr.array[ix] = (Math.random() - 0.5) * 14;
+            posAttr.array[iy] = (Math.random() - 0.5) * 18;
+            posAttr.array[iz] = 0;
+            velocities[ix] = 0; velocities[iy] = 0;
+            particleLife[i] = 0.1 + Math.random() * 0.15;
+            continue;
+          }
+          continue;
         }
-        
-        velocities[ix] *= 0.88; velocities[iy] *= 0.88;
       }
       else if (currentMode === 'LIGHT_PAINT') {
-        // Particles with life > 0 are active paint splashes
+        // Particles with life > 0 are active (paint or firefly)
         if (particleLife[i] > 0) {
-          particleLife[i] -= 0.008; // Fade over ~2 seconds
+          particleLife[i] -= 0.008;
           
-          // Slight downward drift + spread
           velocities[iy] -= 0.002;
           velocities[ix] *= 0.97; velocities[iy] *= 0.97;
           
           posAttr.array[ix] += velocities[ix];
           posAttr.array[iy] += velocities[iy];
           
-          // Fade color alpha by reducing brightness
           const life = Math.max(0, particleLife[i]);
           const paintColor = new THREE.Color().setHSL(this.data.customHue / 360, 0.9, life * 0.7 + 0.1);
           colorAttr.array[ix] = paintColor.r; colorAttr.array[ix+1] = paintColor.g; colorAttr.array[ix+2] = paintColor.b;
           
           if (particleLife[i] <= 0) {
-            posAttr.array[ix] = 9999; // Move completely out of frustum
+            posAttr.array[ix] = 9999;
             posAttr.array[iy] = 9999;
             posAttr.array[iz] = 9999;
             colorAttr.array[ix] = 0; colorAttr.array[ix+1] = 0; colorAttr.array[ix+2] = 0;
           }
         } else {
-          // Dead paint particles: skip all general physics below
+          // Ambient fireflies: ~2 random dead particles per frame sparkle to life
+          if (Math.random() < 0.001) {
+            posAttr.array[ix] = (Math.random() - 0.5) * 14;
+            posAttr.array[iy] = (Math.random() - 0.5) * 18;
+            posAttr.array[iz] = (Math.random() - 0.5) * 0.5;
+            velocities[ix] = (Math.random() - 0.5) * 0.01;
+            velocities[iy] = (Math.random() - 0.5) * 0.01;
+            particleLife[i] = 0.15 + Math.random() * 0.2; // Short dim life
+            continue;
+          }
           continue;
         }
       }
@@ -432,7 +449,7 @@ Page({
       
       posAttr.array[ix] += velocities[ix]; posAttr.array[iy] += velocities[iy];
 
-      if (currentMode !== 'RIPPLE' && currentMode !== 'FINGER_VORTEX' && currentMode !== 'CONSTELLATION' && currentMode !== 'LIGHT_PAINT') {
+      if (currentMode !== 'RIPPLE' && currentMode !== 'FINGER_VORTEX' && currentMode !== 'FIREWORKS' && currentMode !== 'LIGHT_PAINT') {
         posAttr.array[iz] += Math.sin(time + phase[i]) * 0.002;
       }
 
@@ -452,51 +469,6 @@ Page({
       particleSystem.material.uniforms.particleSize.value = 1.0 + (this.data.customSize / 100) * 10.0;
     }
 
-    // Build constellation lines near finger (sparse, like real constellations)
-    if (currentMode === 'CONSTELLATION' && lineSystem && isInteracting) {
-      let lineIdx = 0;
-      const maxLinePairs = 3000;
-      const connectRadius = 3.0;
-      const maxLineLen = 0.8; // Short connections only
-      const nearParticles = [];
-      const connCount = new Uint8Array(particleCount); // Track connections per particle
-      
-      // Collect particles near finger
-      for (let i = 0; i < particleCount && nearParticles.length < 80; i++) {
-        const px = posAttr.array[i*3], py = posAttr.array[i*3+1];
-        const d = Math.sqrt((px - target.x)**2 + (py - target.y)**2);
-        if (d < connectRadius) nearParticles.push(i);
-      }
-      
-      // Connect pairs, max 3 lines per particle for sparse pattern
-      for (let a = 0; a < nearParticles.length && lineIdx < maxLinePairs; a++) {
-        if (connCount[nearParticles[a]] >= 3) continue;
-        for (let b = a + 1; b < nearParticles.length && lineIdx < maxLinePairs; b++) {
-          if (connCount[nearParticles[b]] >= 3) continue;
-          const ia = nearParticles[a] * 3, ib = nearParticles[b] * 3;
-          const dd = Math.sqrt((posAttr.array[ia]-posAttr.array[ib])**2 + (posAttr.array[ia+1]-posAttr.array[ib+1])**2);
-          if (dd < maxLineLen) {
-            linePositions[lineIdx*6]   = posAttr.array[ia];
-            linePositions[lineIdx*6+1] = posAttr.array[ia+1];
-            linePositions[lineIdx*6+2] = 0;
-            linePositions[lineIdx*6+3] = posAttr.array[ib];
-            linePositions[lineIdx*6+4] = posAttr.array[ib+1];
-            linePositions[lineIdx*6+5] = 0;
-            lineIdx++;
-            connCount[nearParticles[a]]++;
-            connCount[nearParticles[b]]++;
-          }
-        }
-      }
-      lineSystem.geometry.setDrawRange(0, lineIdx * 2);
-      lineSystem.geometry.attributes.position.needsUpdate = true;
-      
-      const lc = new THREE.Color().setHSL(this.data.customHue / 360, 0.7, 0.55);
-      lineSystem.material.color = lc;
-      lineSystem.material.opacity = 0.4;
-    } else if (currentMode === 'CONSTELLATION' && lineSystem && !isInteracting) {
-      lineSystem.geometry.setDrawRange(0, 0);
-    }
 
     // Clear the justReleased flag after one frame of explosion
     if (justReleased) {
@@ -521,6 +493,24 @@ Page({
   touchStart(e) {
     if (e.touches && e.touches.length > 0) {
       this._updateMouse(e.touches[0].clientX, e.touches[0].clientY);
+      
+      // FIREWORKS: burst 80 particles from tap point
+      if (currentMode === 'FIREWORKS' && particleSystem && particleLife) {
+        const posAttr = particleSystem.geometry.attributes.position;
+        for (let s = 0; s < 80; s++) {
+          const idx = paintIndex % particleCount;
+          paintIndex++;
+          const burstAngle = Math.random() * Math.PI * 2;
+          const burstSpeed = 0.05 + Math.random() * 0.15;
+          posAttr.array[idx*3]   = mouse.x + (Math.random()-0.5) * 0.2;
+          posAttr.array[idx*3+1] = mouse.y + (Math.random()-0.5) * 0.2;
+          posAttr.array[idx*3+2] = (Math.random()-0.5) * 0.3;
+          velocities[idx*3]   = Math.cos(burstAngle) * burstSpeed;
+          velocities[idx*3+1] = Math.sin(burstAngle) * burstSpeed + 0.03;
+          particleLife[idx] = 0.6 + Math.random() * 0.4;
+        }
+        posAttr.needsUpdate = true;
+      }
     }
   },
 
