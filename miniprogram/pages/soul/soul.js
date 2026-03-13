@@ -15,10 +15,11 @@ let reqId;
 let gravity = { x: 0, y: 0 };
 let vortexCharge = 0;
 let justReleased = false;
-let lineSystem = null; // THREE.LineSegments for constellation
+let lineSystem = null;
 let linePositions = null;
-let particleLife = null; // Float32Array for LIGHT_PAINT fade timers
-let paintIndex = 0; // Round-robin cursor for spawning paint particles
+let particleLife = null;
+let paintIndex = 0;
+let lastMouse = { x: 0, y: 0 }; // Track previous finger position for drag velocity
 
 Page({
   data: {
@@ -112,6 +113,7 @@ Page({
     const info = wx.getSystemInfoSync();
     renderer.setPixelRatio(Math.min(info.pixelRatio, 2));
     renderer.setSize(canvas.width, canvas.height);
+    renderer.setClearColor(0x000000, 0); // Transparent so CSS gradient shows through
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(75, canvas.width / canvas.height, 0.1, 1000);
@@ -365,19 +367,21 @@ Page({
         // Flatten Z
         posAttr.array[iz] += (0 - posAttr.array[iz]) * 0.1;
         
-        // Store original grid position in phase-based offsets
+        // Home position in grid
         const homeX = ((i % 50) / 49 - 0.5) * 14.0;
         const homeY = -(Math.floor(i / 50) / 39 - 0.5) * 18.0;
         
-        if (isInteracting && dist < 3.0) {
-          // MAGNETIC DRAG: particles near finger get pulled along
-          const magnetStrength = (3.0 - dist) * 0.06;
-          velocities[ix] += dx * magnetStrength * 0.3;
-          velocities[iy] += dy * magnetStrength * 0.3;
+        if (isInteracting && dist < 3.5) {
+          // MAGNETIC DRAG: apply finger's movement delta to nearby particles
+          const fingerVx = mouse.x - lastMouse.x;
+          const fingerVy = mouse.y - lastMouse.y;
+          const influence = (3.5 - dist) / 3.5; // 1.0 at center, 0 at edge
+          velocities[ix] += fingerVx * influence * 0.5;
+          velocities[iy] += fingerVy * influence * 0.5;
           
-          // Also glow
-          const glow = 1.0 - dist / 3.0;
-          const glowColor = new THREE.Color().setHSL(this.data.customHue / 360, 0.95, 0.35 + glow * 0.55);
+          // Glow feedback
+          const glow = influence;
+          const glowColor = new THREE.Color().setHSL(this.data.customHue / 360, 0.95, 0.3 + glow * 0.6);
           colorAttr.array[ix] = glowColor.r; colorAttr.array[ix+1] = glowColor.g; colorAttr.array[ix+2] = glowColor.b;
         } else {
           // SPRING BACK: slowly return to home position
@@ -385,7 +389,7 @@ Page({
           velocities[iy] += (homeY - posAttr.array[iy]) * 0.02;
         }
         
-        velocities[ix] *= 0.9; velocities[iy] *= 0.9;
+        velocities[ix] *= 0.88; velocities[iy] *= 0.88;
       }
       else if (currentMode === 'LIGHT_PAINT') {
         // Particles with life > 0 are active paint splashes
@@ -506,6 +510,8 @@ Page({
 
   _updateMouse(x, y) {
     isInteracting = true;
+    lastMouse.x = mouse.x;
+    lastMouse.y = mouse.y;
     const info = wx.getSystemInfoSync();
     mouse.x = (x / info.windowWidth) * 2 - 1;
     mouse.y = -(y / info.windowHeight) * 2 + 1;
