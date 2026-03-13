@@ -15,6 +15,16 @@
       <view class="theme-item {{currentMode === 'SOLAR' ? 'active' : ''}}" style="color: #06b6d4; background: #06b6d4;" bindtap="setTheme" data-mode="SOLAR"></view>
       <view class="theme-item {{currentMode === 'METEOR_SHOWER' ? 'active' : ''}}" style="color: #fbbf24; background: #fbbf24;" bindtap="setTheme" data-mode="METEOR_SHOWER"></view>
       <view class="theme-item {{currentMode === 'LIQUID_WAVE' ? 'active' : ''}}" style="color: #2dd4bf; background: #2dd4bf;" bindtap="setTheme" data-mode="LIQUID_WAVE"></view>
+      <!-- 调色板按钮 -->
+      <view class="theme-item palette-btn {{showPalette ? 'active' : ''}}" style="background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);" bindtap="togglePalette"></view>
+    </view>
+
+    <!-- 调色板面板 -->
+    <view class="palette-panel" wx:if="{{showPalette}}">
+      <view class="palette-label">色相 H</view>
+      <slider min="0" max="360" value="{{customHue}}" activeColor="#60a5fa" block-size="14" bindchange="onHueChange" />
+      <view class="palette-label">亮度 L</view>
+      <slider min="10" max="100" value="{{customBright}}" activeColor="#60a5fa" block-size="14" bindchange="onBrightChange" />
     </view>
 
     <!-- 左下角进度 -->

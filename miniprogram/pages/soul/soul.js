@@ -21,7 +21,10 @@ Page({
     progNum: 0,
     energy: 0,
     showDiag: false,
-    resId: ''
+    resId: '',
+    showPalette: false,
+    customHue: 220,
+    customBright: 50
   },
 
   onLoad(options) {
@@ -132,30 +135,17 @@ Page({
     // Instead of simple PointsMaterial, we use a custom ShaderMaterial to allow velocity stretching for Meteors
     const uniforms = {
       pointTexture: { value: this._createTexture() },
-      isMeteor: { value: 0.0 }
+      isMeteor: { value: 0.0 },
+      gravityAngle: { value: -Math.PI / 2 }
     };
 
     const vertexShader = `
       attribute vec3 color;
-      attribute vec3 velocity;
       varying vec3 vColor;
       uniform float isMeteor;
       void main() {
         vColor = color;
-        vec3 pos = position;
-        
-        // If it's a meteor, stretch the position slightly along its velocity vector
-        if (isMeteor > 0.5) {
-           // We can't easily stretch a gl_Point into a line purely in vertex shader without geometry shaders,
-           // but we CAN offset it based on the camera angle or rely on an elongated aspect ratio.
-           // For a lightweight Mini Program, a custom texture or simulated tail is better, 
-           // but given limitations, we will make the points larger and rely on the high fall speed to create Persistence of Vision (PoV) streaks,
-           // combined with a slightly lower opacity additive blend.
-        }
-
-        vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-        
-        // Size attenuation: Meteors are much larger to allow rendering a long tail
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
         gl_PointSize = (isMeteor > 0.5 ? 45.0 : 4.0) * (30.0 / -mvPosition.z);
         gl_Position = projectionMatrix * mvPosition;
       }
@@ -164,19 +154,26 @@ Page({
     const fragmentShader = `
       uniform sampler2D pointTexture;
       uniform float isMeteor;
+      uniform float gravityAngle;
       varying vec3 vColor;
       void main() {
         vec4 texColor = texture2D(pointTexture, gl_PointCoord);
         
-        // If it's a meteor, we manually shape the texture coordinates in the fragment shader to look like a long streak
         if (isMeteor > 0.5) {
-            // Elongate the dot into a long streak based on Y axis (falling down)
-            vec2 uv = gl_PointCoord;
-            uv.x = (uv.x - 0.5) * 15.0 + 0.5; // squash horizontally severely to make a thin line
-            texColor = texture2D(pointTexture, uv);
+            // Rotate UV by gravity angle so the streak follows the tilt direction
+            vec2 uv = gl_PointCoord - 0.5;
+            float ca = cos(gravityAngle + 1.5708);
+            float sa = sin(gravityAngle + 1.5708);
+            vec2 ruv = vec2(uv.x * ca - uv.y * sa, uv.x * sa + uv.y * ca);
             
-            // Fade the tail (top part of the point) to simulate a comet/meteor streak
-            texColor.a *= smoothstep(0.0, 0.5, 1.0 - gl_PointCoord.y);
+            // Squash perpendicular axis to make a thin line
+            ruv.x *= 12.0;
+            ruv += 0.5;
+            texColor = texture2D(pointTexture, ruv);
+            
+            // Fade along the streak for comet tail effect
+            float along = uv.x * sa + uv.y * ca;
+            texColor.a *= smoothstep(0.0, 0.4, 0.5 - along);
         }
         
         gl_FragColor = vec4(vColor, texColor.a * 0.8);
@@ -273,30 +270,35 @@ Page({
         velocities[iy] += dy * pull;
       }
       else if (currentMode === 'METEOR_SHOWER') {
-        // Only 1 out of 8 particles become meteors to completely fix the "密密麻麻" (dense cluster) issue
-        if (i % 8 !== 0) {
-           velocities[iy] += (15.0 - posAttr.array[iy]) * 0.1; // Hide them way above screen
+        // Only 1 out of 5 particles become meteors
+        if (i % 5 !== 0) {
+           velocities[iy] += (15.0 - posAttr.array[iy]) * 0.1;
            velocities[ix] *= 0.8;
         } else {
-           // Fall speed is tied EXACTLY to how much the phone is tilted toward the user.
-           // gravity.y is negative when tilted toward the user. If flat, gravity.y ≈ 0.
-           const tilt = Math.max(0, -gravity.y); 
-           const fallSpeed = tilt * 0.3; // Total stop if flat, very fast if tilted heavily
+           // Fall direction follows the gravity vector (phone tilt)
+           const gx = gravity.x;
+           const gy = gravity.y;
+           const gMag = Math.sqrt(gx*gx + gy*gy) || 0.001;
            
-           velocities[ix] += gravity.x * 0.05; // Slight wind drift based on left/right tilt
-           velocities[iy] -= fallSpeed;       // Fall only when tilted
+           // Speed proportional to tilt magnitude, capped at maxSpeed
+           const maxSpeed = 0.15;
+           const rawSpeed = Math.min(maxSpeed, gMag * 1.5);
+           
+           // Apply velocity in the direction of gravity 
+           velocities[ix] += (gx / gMag) * rawSpeed * 0.3;
+           velocities[iy] += (gy / gMag) * rawSpeed * 0.3;
            
            // Touch interaction: swipe to scatter meteors
            if (isInteracting && dist < 2.5) {
-              velocities[ix] -= (dx / dist) * 0.2;
-              velocities[iy] -= (dy / dist) * 0.2;
+              velocities[ix] -= (dx / dist) * 0.15;
+              velocities[iy] -= (dy / dist) * 0.15;
            }
 
-           // Loop back to top to create endless sparse rain
-           if (posAttr.array[iy] < -12) {
-              // Huge vertical variance so they spawn irregularly and not in chunks
-              posAttr.array[iy] = 12 + Math.random() * 30;
-              posAttr.array[ix] = (Math.random() - 0.5) * 25;
+           // If particle goes off any edge, respawn from opposite side
+           if (posAttr.array[iy] < -12 || posAttr.array[iy] > 18 || 
+               posAttr.array[ix] < -14 || posAttr.array[ix] > 14) {
+              posAttr.array[iy] = (Math.random() - 0.5) * 20;
+              posAttr.array[ix] = (Math.random() - 0.5) * 20;
               velocities[iy] = 0;
               velocities[ix] = 0;
            }
@@ -344,20 +346,37 @@ Page({
       }
 
       velocities[ix] *= 0.94; velocities[iy] *= 0.94;
+      
+      // Global velocity clamp to prevent eye-strain
+      const vMag = Math.sqrt(velocities[ix]**2 + velocities[iy]**2);
+      const vCap = 0.15;
+      if (vMag > vCap) {
+        velocities[ix] = (velocities[ix] / vMag) * vCap;
+        velocities[iy] = (velocities[iy] / vMag) * vCap;
+      }
+      
       posAttr.array[ix] += velocities[ix]; posAttr.array[iy] += velocities[iy];
 
       if (currentMode !== 'RIPPLE' && currentMode !== 'METEOR_SHOWER' && currentMode !== 'LIQUID_WAVE') {
         posAttr.array[iz] += Math.sin(time + phase[i]) * 0.002;
       }
 
+      // Use custom hue/brightness from palette if available
       const speed = Math.sqrt(velocities[ix] ** 2 + velocities[iy] ** 2);
-      const brightness = Math.max(0.3, Math.min(0.9, speed * 25 + 0.4));
+      const userHue = this.data.customHue / 360;
+      const userBright = this.data.customBright / 100;
+      const brightness = Math.max(0.2, Math.min(0.95, speed * 20 + userBright * 0.6 + 0.2));
       const color = new THREE.Color();
-      const baseHue = (currentMode === 'LIQUID_WAVE') ? 0.48 : (currentMode === 'METEOR_SHOWER') ? 0.12 : (currentMode === 'SOLAR') ? 0.5 : 0.62;
-      color.setHSL(baseHue + speed * 0.2, 0.85, brightness);
+      color.setHSL(userHue + speed * 0.1, 0.85, brightness);
       colorAttr.array[ix] = color.r; colorAttr.array[ix + 1] = color.g; colorAttr.array[ix + 2] = color.b;
     }
     posAttr.needsUpdate = true; colorAttr.needsUpdate = true;
+
+    // Update gravity angle for the meteor shader streak rotation
+    if (currentMode === 'METEOR_SHOWER' && particleSystem) {
+      particleSystem.material.uniforms.gravityAngle.value = Math.atan2(gravity.y, gravity.x);
+    }
+
     particleSystem.rotation.z += 0.0001;
     renderer.render(scene, camera);
   },
@@ -396,5 +415,17 @@ Page({
 
   payUnlock() {
     wx.showToast({ title: '商业逻辑：支付功能需后端接入', icon: 'none' });
+  },
+
+  togglePalette() {
+    this.setData({ showPalette: !this.data.showPalette });
+  },
+
+  onHueChange(e) {
+    this.setData({ customHue: e.detail.value });
+  },
+
+  onBrightChange(e) {
+    this.setData({ customBright: e.detail.value });
   }
 })
