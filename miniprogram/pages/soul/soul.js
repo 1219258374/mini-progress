@@ -13,6 +13,7 @@ const particleCount = 2000;
 let positions, velocities, colors, orbitRadii, phase;
 let reqId;
 let gravity = { x: 0, y: 0 };
+let ripples = [];
 
 Page({
   data: {
@@ -128,15 +129,67 @@ Page({
     geometry.addAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.addAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-    const material = new THREE.PointsMaterial({
-      size: 0.18,
-      map: this._createTexture(),
-      vertexColors: THREE.VertexColors,
-      transparent: true,
-      opacity: 0.8,
+    // Instead of simple PointsMaterial, we use a custom ShaderMaterial to allow velocity stretching for Meteors
+    const uniforms = {
+      pointTexture: { value: this._createTexture() },
+      isMeteor: { value: 0.0 }
+    };
+
+    const vertexShader = `
+      attribute vec3 color;
+      attribute vec3 velocity;
+      varying vec3 vColor;
+      uniform float isMeteor;
+      void main() {
+        vColor = color;
+        vec3 pos = position;
+        
+        // If it's a meteor, stretch the position slightly along its velocity vector
+        if (isMeteor > 0.5) {
+           // We can't easily stretch a gl_Point into a line purely in vertex shader without geometry shaders,
+           // but we CAN offset it based on the camera angle or rely on an elongated aspect ratio.
+           // For a lightweight Mini Program, a custom texture or simulated tail is better, 
+           // but given limitations, we will make the points larger and rely on the high fall speed to create Persistence of Vision (PoV) streaks,
+           // combined with a slightly lower opacity additive blend.
+        }
+
+        vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+        
+        // Size attenuation
+        gl_PointSize = (isMeteor > 0.5 ? 4.0 : 3.0) * (30.0 / -mvPosition.z);
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `;
+
+    const fragmentShader = `
+      uniform sampler2D pointTexture;
+      uniform float isMeteor;
+      varying vec3 vColor;
+      void main() {
+        vec4 texColor = texture2D(pointTexture, gl_PointCoord);
+        
+        // If it's a meteor, we can manually shape the texture coordinates in the fragment shader to look like a streak
+        if (isMeteor > 0.5) {
+            // Elongate the dot into a streak based on Y axis (falling down)
+            vec2 uv = gl_PointCoord;
+            uv.x = (uv.x - 0.5) * 5.0 + 0.5; // Squash horizontally
+            texColor = texture2D(pointTexture, uv);
+            
+            // Fade the tail (top part of the point)
+            texColor.a *= smoothstep(0.0, 0.8, 1.0 - gl_PointCoord.y);
+        }
+        
+        gl_FragColor = vec4(vColor, texColor.a * 0.8);
+      }
+    `;
+
+    const material = new THREE.ShaderMaterial({
+      uniforms: uniforms,
+      vertexShader: vertexShader,
+      fragmentShader: fragmentShader,
       blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      sizeAttenuation: true
+      depthTest: false,
+      transparent: true
     });
 
     particleSystem = new THREE.Points(geometry, material);
@@ -150,7 +203,7 @@ Page({
     this.setData({ currentMode: mode });
     currentMode = mode;
 
-    const hues = { NEBULA: 0.6, RIPPLE: 0.55, SOLAR: 0.5, GRAVITY_FALL: 0.35, MAGNETIC_STORM: 0.02 };
+    const hues = { NEBULA: 0.6, RIPPLE: 0.55, SOLAR: 0.5, METEOR_SHOWER: 0.1, LIQUID_WAVE: 0.48 };
     if (particleSystem) {
       const colorAttr = particleSystem.geometry.attributes.color;
       const newCol = new THREE.Color().setHSL(hues[mode], 0.9, 0.5);
@@ -158,6 +211,9 @@ Page({
         colorAttr.array[i * 3] = newCol.r; colorAttr.array[i * 3 + 1] = newCol.g; colorAttr.array[i * 3 + 2] = newCol.b;
       }
       colorAttr.needsUpdate = true;
+      
+      // Tell the shader if we are in meteor mode to trigger the streak shaping
+      particleSystem.material.uniforms.isMeteor.value = (mode === 'METEOR_SHOWER') ? 1.0 : 0.0;
     }
   },
 
@@ -182,6 +238,14 @@ Page({
     const posAttr = particleSystem.geometry.attributes.position;
     const colorAttr = particleSystem.geometry.attributes.color;
     const time = Date.now() * 0.001;
+
+    // Advance expanding ripples for LIQUID_WAVE
+    if (currentMode === 'LIQUID_WAVE') {
+      for (let r = ripples.length - 1; r >= 0; r--) {
+        ripples[r].time += 0.04; 
+        if (ripples[r].time > 3.5) ripples.splice(r, 1); // Fade out after ~3.5s
+      }
+    }
 
     for (let i = 0; i < particleCount; i++) {
       const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
@@ -208,54 +272,72 @@ Page({
         velocities[ix] += dx * pull;
         velocities[iy] += dy * pull;
       }
-      else if (currentMode === 'GRAVITY_FALL') {
-        velocities[ix] += (Math.random() - 0.5) * 0.005;
-        velocities[iy] += (Math.random() - 0.5) * 0.005;
-      }
-      else if (currentMode === 'MAGNETIC_STORM') {
-        velocities[ix] += (Math.random() - 0.5) * 0.04;
-        velocities[iy] += (Math.random() - 0.5) * 0.04;
-        const pull = Math.min(0.015, 1.0 / (dist + 2));
-        velocities[ix] += dx * pull;
-        velocities[iy] += dy * pull;
-      }
-
-      // Apply universal gravity from accelerometer ONLY if mode is one of the new ones
-      if (currentMode === 'GRAVITY_FALL' || currentMode === 'MAGNETIC_STORM') {
-        velocities[ix] += gravity.x * 2.0;
-        velocities[iy] -= gravity.y * 2.0; // Invert Y because screen space Y is opposite to physical accel Y
+      else if (currentMode === 'METEOR_SHOWER') {
+        // Fall speed is tied EXACTLY to how much the phone is tilted toward the user.
+        // gravity.y is negative when tilted toward the user.
+        // If the phone is flat (gravity.y ≈ 0), they stop falling.
+        const fallSpeed = Math.max(0, -gravity.y * 1.5); 
         
-        // Invisible elastic glass container to prevent flying off screen indefinitely
-        const ox = posAttr.array[ix];
-        const oy = posAttr.array[iy];
-        const distCenter = Math.sqrt(ox*ox + oy*oy) || 0.001; 
-        const maxRadius = 4.5;
+        velocities[ix] += gravity.x * 0.1; // Slight wind drift based on left/right tilt
+        velocities[iy] -= fallSpeed;       // Fall only when tilted
         
-        if (distCenter > maxRadius) {
-          // Strong spring force pulling them back inside the radius
-          const springForce = (distCenter - maxRadius) * 0.08;
-          velocities[ix] -= (ox / distCenter) * springForce;
-          velocities[iy] -= (oy / distCenter) * springForce;
-          
-          // Friction and volume scatter against the edge so they pool instead of collapsing into a single dot
-          velocities[ix] *= 0.8;
-          velocities[iy] *= 0.8;
-          velocities[ix] += (Math.random() - 0.5) * 0.02;
-          velocities[iy] += (Math.random() - 0.5) * 0.02;
+        // Touch interaction: swipe to scatter meteors
+        if (isInteracting && dist < 2.5) {
+           velocities[ix] -= (dx / dist) * 0.2;
+           velocities[iy] -= (dy / dist) * 0.2;
         }
+
+        // Loop back to top to create endless rain
+        if (posAttr.array[iy] < -12) {
+           posAttr.array[iy] = 12 + Math.random() * 5;
+           posAttr.array[ix] = (Math.random() - 0.5) * 25;
+           // Reset velocity so they don't violently snap when looping
+           velocities[iy] = 0;
+           velocities[ix] = 0;
+        }
+      }
+      else if (currentMode === 'LIQUID_WAVE') {
+        const lx = posAttr.array[ix];
+        const ly = posAttr.array[iy];
+        let targetZ = 0;
+
+        // Calculate superposition of all active propagating ripples
+        for (let r = 0; r < ripples.length; r++) {
+           const rip = ripples[r];
+           const distToRip = Math.sqrt((lx - rip.x)**2 + (ly - rip.y)**2);
+           
+           // Wave expands outward
+           const waveRadius = rip.time * 8.0; 
+           const waveWidth = 2.0; // Thickness of the ripple ring
+           const distFromWave = Math.abs(distToRip - waveRadius);
+           
+           if (distFromWave < waveWidth) {
+              // Fade intensity over time
+              const intensity = Math.max(0, 1.0 - rip.time / 3.0);
+              // Sine wave bump in the ring
+              targetZ += Math.sin((1.0 - distFromWave/waveWidth) * Math.PI) * 1.8 * intensity;
+           }
+        }
+
+        // Smoothly ease Z back to baseline or up to the wave height
+        posAttr.array[iz] += (targetZ - posAttr.array[iz]) * 0.12;
+
+        // Strip away X/Y sway so the particles look like a completely static field from above
+        velocities[ix] -= velocities[ix] * 0.1;
+        velocities[iy] -= velocities[iy] * 0.1;
       }
 
       velocities[ix] *= 0.94; velocities[iy] *= 0.94;
       posAttr.array[ix] += velocities[ix]; posAttr.array[iy] += velocities[iy];
 
-      if (currentMode !== 'RIPPLE') {
+      if (currentMode !== 'RIPPLE' && currentMode !== 'METEOR_SHOWER' && currentMode !== 'LIQUID_WAVE') {
         posAttr.array[iz] += Math.sin(time + phase[i]) * 0.002;
       }
 
       const speed = Math.sqrt(velocities[ix] ** 2 + velocities[iy] ** 2);
       const brightness = Math.max(0.3, Math.min(0.9, speed * 25 + 0.4));
       const color = new THREE.Color();
-      const baseHue = (currentMode === 'MAGNETIC_STORM') ? 0.02 : (currentMode === 'GRAVITY_FALL') ? 0.35 : (currentMode === 'SOLAR') ? 0.5 : 0.62;
+      const baseHue = (currentMode === 'LIQUID_WAVE') ? 0.48 : (currentMode === 'METEOR_SHOWER') ? 0.12 : (currentMode === 'SOLAR') ? 0.5 : 0.62;
       color.setHSL(baseHue + speed * 0.2, 0.85, brightness);
       colorAttr.array[ix] = color.r; colorAttr.array[ix + 1] = color.g; colorAttr.array[ix + 2] = color.b;
     }
@@ -273,7 +355,13 @@ Page({
   },
 
   touchStart(e) {
-    if (e.touches && e.touches.length > 0) this._updateMouse(e.touches[0].clientX, e.touches[0].clientY);
+    if (e.touches && e.touches.length > 0) {
+      this._updateMouse(e.touches[0].clientX, e.touches[0].clientY);
+      // Drop a new stone in the pond
+      if (currentMode === 'LIQUID_WAVE') {
+        ripples.push({ x: mouse.x, y: mouse.y, time: 0 });
+      }
+    }
   },
 
   touchMove(e) {

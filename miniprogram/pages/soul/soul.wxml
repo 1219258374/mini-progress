@@ -13,8 +13,8 @@
       <view class="theme-item {{currentMode === 'NEBULA' ? 'active' : ''}}" style="color: #3b82f6; background: #3b82f6;" bindtap="setTheme" data-mode="NEBULA"></view>
       <view class="theme-item {{currentMode === 'RIPPLE' ? 'active' : ''}}" style="color: #60a5fa; background: #60a5fa;" bindtap="setTheme" data-mode="RIPPLE"></view>
       <view class="theme-item {{currentMode === 'SOLAR' ? 'active' : ''}}" style="color: #06b6d4; background: #06b6d4;" bindtap="setTheme" data-mode="SOLAR"></view>
-      <view class="theme-item {{currentMode === 'GRAVITY_FALL' ? 'active' : ''}}" style="color: #10b981; background: #10b981;" bindtap="setTheme" data-mode="GRAVITY_FALL"></view>
-      <view class="theme-item {{currentMode === 'MAGNETIC_STORM' ? 'active' : ''}}" style="color: #f43f5e; background: #f43f5e;" bindtap="setTheme" data-mode="MAGNETIC_STORM"></view>
+      <view class="theme-item {{currentMode === 'METEOR_SHOWER' ? 'active' : ''}}" style="color: #fbbf24; background: #fbbf24;" bindtap="setTheme" data-mode="METEOR_SHOWER"></view>
+      <view class="theme-item {{currentMode === 'LIQUID_WAVE' ? 'active' : ''}}" style="color: #2dd4bf; background: #2dd4bf;" bindtap="setTheme" data-mode="LIQUID_WAVE"></view>
     </view>
 
     <!-- 左下角进度 -->
