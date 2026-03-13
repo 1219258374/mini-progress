@@ -230,7 +230,7 @@ Page({
     this.setData({ currentMode: mode });
     currentMode = mode;
 
-    const hues = { NEBULA: 0.6, RIPPLE: 0.55, TIDAL: 0.5, FINGER_VORTEX: 0.8, FIREWORKS: 0.08, LIGHT_PAINT: 0.0 };
+    const hues = { NEBULA: 0.6, RIPPLE: 0.55, TIDAL: 0.5, FINGER_VORTEX: 0.8, FIREWORKS: 0.08, LIGHT_PAINT: 0.0, KALEIDOSCOPE: 0.0, LASER: 0.55, RAIN: 0.58 };
     if (particleSystem) {
       const posAttr = particleSystem.geometry.attributes.position;
       const colorAttr = particleSystem.geometry.attributes.color;
@@ -258,8 +258,8 @@ Page({
     // Hide line system (no mode uses it anymore)
     if (lineSystem) lineSystem.visible = false;
 
-    // Reset particles for pool-based modes (LIGHT_PAINT and FIREWORKS)
-    if ((mode === 'LIGHT_PAINT' || mode === 'FIREWORKS') && particleLife) {
+    // Reset particles for pool-based modes
+    if ((mode === 'LIGHT_PAINT' || mode === 'FIREWORKS' || mode === 'KALEIDOSCOPE' || mode === 'LASER') && particleLife) {
       const posAttr = particleSystem.geometry.attributes.position;
       const colorAttr = particleSystem.geometry.attributes.color;
       for (let i = 0; i < particleCount; i++) {
@@ -272,6 +272,20 @@ Page({
       posAttr.needsUpdate = true;
       colorAttr.needsUpdate = true;
       paintIndex = 0;
+    }
+
+    // RAIN mode: scatter particles at top of screen
+    if (mode === 'RAIN' && particleSystem) {
+      const posAttr = particleSystem.geometry.attributes.position;
+      for (let i = 0; i < particleCount; i++) {
+        posAttr.array[i*3]   = (Math.random() - 0.5) * 16;
+        posAttr.array[i*3+1] = 10 + Math.random() * 15;  // Stagger above screen
+        posAttr.array[i*3+2] = (Math.random() - 0.5) * 2;
+        velocities[i*3]   = 0;
+        velocities[i*3+1] = -(0.02 + Math.random() * 0.04); // Downward speed
+        if (particleLife) particleLife[i] = -1; // Mark as non-pool
+      }
+      posAttr.needsUpdate = true;
     }
   },
 
@@ -401,20 +415,30 @@ Page({
           continue;
         }
       }
-      else if (currentMode === 'LIGHT_PAINT') {
-        // Particles with life > 0 are active (paint or firefly)
+      else if (currentMode === 'LIGHT_PAINT' || currentMode === 'KALEIDOSCOPE') {
+        // Pool-based: active particles fade, dead ones may sparkle
         if (particleLife[i] > 0) {
-          particleLife[i] -= 0.008;
+          particleLife[i] -= (currentMode === 'KALEIDOSCOPE' ? 0.004 : 0.008);
           
-          velocities[iy] -= 0.002;
+          if (currentMode === 'LIGHT_PAINT') {
+            velocities[iy] -= 0.002;
+          }
           velocities[ix] *= 0.97; velocities[iy] *= 0.97;
           
           posAttr.array[ix] += velocities[ix];
           posAttr.array[iy] += velocities[iy];
           
           const life = Math.max(0, particleLife[i]);
-          const paintColor = new THREE.Color().setHSL(this.data.customHue / 360, 0.9, life * 0.7 + 0.1);
-          colorAttr.array[ix] = paintColor.r; colorAttr.array[ix+1] = paintColor.g; colorAttr.array[ix+2] = paintColor.b;
+          if (currentMode === 'KALEIDOSCOPE') {
+            // Rainbow color based on angle from center
+            const pAngle = Math.atan2(posAttr.array[iy], posAttr.array[ix]);
+            const rainbowHue = (pAngle / (Math.PI * 2) + 0.5 + time * 0.05) % 1.0;
+            const kColor = new THREE.Color().setHSL(rainbowHue, 0.9, life * 0.7 + 0.15);
+            colorAttr.array[ix] = kColor.r; colorAttr.array[ix+1] = kColor.g; colorAttr.array[ix+2] = kColor.b;
+          } else {
+            const paintColor = new THREE.Color().setHSL(this.data.customHue / 360, 0.9, life * 0.7 + 0.1);
+            colorAttr.array[ix] = paintColor.r; colorAttr.array[ix+1] = paintColor.g; colorAttr.array[ix+2] = paintColor.b;
+          }
           
           if (particleLife[i] <= 0) {
             posAttr.array[ix] = 9999;
@@ -423,18 +447,68 @@ Page({
             colorAttr.array[ix] = 0; colorAttr.array[ix+1] = 0; colorAttr.array[ix+2] = 0;
           }
         } else {
-          // Ambient fireflies: ~2 random dead particles per frame sparkle to life
+          // Ambient fireflies
           if (Math.random() < 0.001) {
             posAttr.array[ix] = (Math.random() - 0.5) * 14;
             posAttr.array[iy] = (Math.random() - 0.5) * 18;
             posAttr.array[iz] = (Math.random() - 0.5) * 0.5;
-            velocities[ix] = (Math.random() - 0.5) * 0.01;
-            velocities[iy] = (Math.random() - 0.5) * 0.01;
-            particleLife[i] = 0.15 + Math.random() * 0.2; // Short dim life
+            velocities[ix] = 0; velocities[iy] = 0;
+            particleLife[i] = 0.15 + Math.random() * 0.2;
             continue;
           }
           continue;
         }
+      }
+      else if (currentMode === 'LASER') {
+        // Pool-based: fast-moving laser particles fade
+        if (particleLife[i] > 0) {
+          particleLife[i] -= 0.012;
+          velocities[ix] *= 0.99; velocities[iy] *= 0.99;
+          posAttr.array[ix] += velocities[ix];
+          posAttr.array[iy] += velocities[iy];
+          
+          const life = Math.max(0, particleLife[i]);
+          const laserColor = new THREE.Color().setHSL(this.data.customHue / 360, 1.0, life * 0.9 + 0.1);
+          colorAttr.array[ix] = laserColor.r; colorAttr.array[ix+1] = laserColor.g; colorAttr.array[ix+2] = laserColor.b;
+          
+          if (particleLife[i] <= 0) {
+            posAttr.array[ix] = 9999; posAttr.array[iy] = 9999; posAttr.array[iz] = 9999;
+            colorAttr.array[ix] = 0; colorAttr.array[ix+1] = 0; colorAttr.array[ix+2] = 0;
+          }
+        } else {
+          continue;
+        }
+      }
+      else if (currentMode === 'RAIN') {
+        // Continuous rain: fall, respawn at top, finger repels
+        velocities[iy] -= 0.001; // Gravity
+        velocities[ix] += (Math.random() - 0.5) * 0.001; // Slight horizontal drift
+        velocities[ix] *= 0.99; velocities[iy] *= 0.995;
+        
+        // Finger umbrella: repel nearby particles
+        if (isInteracting && dist < 2.5) {
+          const repel = (2.5 - dist) * 0.015;
+          velocities[ix] -= (dx / (dist + 0.01)) * repel;
+          velocities[iy] -= (dy / (dist + 0.01)) * repel;
+        }
+        
+        posAttr.array[ix] += velocities[ix];
+        posAttr.array[iy] += velocities[iy];
+        
+        // Respawn at top when below screen
+        if (posAttr.array[iy] < -12) {
+          posAttr.array[ix] = (Math.random() - 0.5) * 16;
+          posAttr.array[iy] = 10 + Math.random() * 2;
+          posAttr.array[iz] = (Math.random() - 0.5) * 2;
+          velocities[ix] = 0;
+          velocities[iy] = -(0.02 + Math.random() * 0.04);
+        }
+        
+        // Color: cool blue with speed glow
+        const rainSpeed = Math.abs(velocities[iy]);
+        const rainBright = 0.2 + rainSpeed * 3.0;
+        const rainColor = new THREE.Color().setHSL(this.data.customHue / 360 || 0.58, 0.7, Math.min(0.55, rainBright));
+        colorAttr.array[ix] = rainColor.r; colorAttr.array[ix+1] = rainColor.g; colorAttr.array[ix+2] = rainColor.b;
       }
 
       velocities[ix] *= 0.94; velocities[iy] *= 0.94;
@@ -449,7 +523,7 @@ Page({
       
       posAttr.array[ix] += velocities[ix]; posAttr.array[iy] += velocities[iy];
 
-      if (currentMode !== 'RIPPLE' && currentMode !== 'FINGER_VORTEX' && currentMode !== 'FIREWORKS' && currentMode !== 'LIGHT_PAINT') {
+      if (currentMode !== 'RIPPLE' && currentMode !== 'FINGER_VORTEX' && currentMode !== 'FIREWORKS' && currentMode !== 'LIGHT_PAINT' && currentMode !== 'KALEIDOSCOPE' && currentMode !== 'LASER' && currentMode !== 'RAIN') {
         posAttr.array[iz] += Math.sin(time + phase[i]) * 0.002;
       }
 
@@ -521,7 +595,7 @@ Page({
       // Spray paint particles along finger trail
       if (currentMode === 'LIGHT_PAINT' && particleSystem && particleLife) {
         const posAttr = particleSystem.geometry.attributes.position;
-        for (let s = 0; s < 8; s++) { // Spawn 8 particles per frame
+        for (let s = 0; s < 8; s++) {
           const idx = paintIndex % particleCount;
           paintIndex++;
           posAttr.array[idx*3]   = mouse.x + (Math.random()-0.5) * 0.3;
@@ -532,6 +606,54 @@ Page({
           particleLife[idx] = 1.0;
         }
         posAttr.needsUpdate = true;
+      }
+      
+      // KALEIDOSCOPE: 6-fold symmetric particle spray
+      if (currentMode === 'KALEIDOSCOPE' && particleSystem && particleLife) {
+        const posAttr = particleSystem.geometry.attributes.position;
+        const folds = 6;
+        for (let s = 0; s < 2; s++) {
+          const rx = mouse.x + (Math.random()-0.5) * 0.15;
+          const ry = mouse.y + (Math.random()-0.5) * 0.15;
+          for (let f = 0; f < folds; f++) {
+            const idx = paintIndex % particleCount;
+            paintIndex++;
+            const rotAngle = (Math.PI * 2 / folds) * f;
+            const cos = Math.cos(rotAngle), sin = Math.sin(rotAngle);
+            // Mirror: alternate folds flip X
+            const mx = (f % 2 === 0) ? rx : -rx;
+            posAttr.array[idx*3]   = mx * cos - ry * sin;
+            posAttr.array[idx*3+1] = mx * sin + ry * cos;
+            posAttr.array[idx*3+2] = 0;
+            velocities[idx*3]   = (Math.random()-0.5) * 0.01;
+            velocities[idx*3+1] = (Math.random()-0.5) * 0.01;
+            particleLife[idx] = 1.0;
+          }
+        }
+        posAttr.needsUpdate = true;
+      }
+      
+      // LASER: tight directional beam along finger movement
+      if (currentMode === 'LASER' && particleSystem && particleLife) {
+        const posAttr = particleSystem.geometry.attributes.position;
+        const dirX = mouse.x - lastMouse.x;
+        const dirY = mouse.y - lastMouse.y;
+        const dirLen = Math.sqrt(dirX * dirX + dirY * dirY);
+        if (dirLen > 0.01) {
+          const ndx = dirX / dirLen, ndy = dirY / dirLen;
+          for (let s = 0; s < 10; s++) {
+            const idx = paintIndex % particleCount;
+            paintIndex++;
+            posAttr.array[idx*3]   = mouse.x + (Math.random()-0.5) * 0.05;
+            posAttr.array[idx*3+1] = mouse.y + (Math.random()-0.5) * 0.05;
+            posAttr.array[idx*3+2] = 0;
+            const speed = 0.2 + Math.random() * 0.15;
+            velocities[idx*3]   = ndx * speed + (Math.random()-0.5) * 0.02;
+            velocities[idx*3+1] = ndy * speed + (Math.random()-0.5) * 0.02;
+            particleLife[idx] = 0.5 + Math.random() * 0.3;
+          }
+          posAttr.needsUpdate = true;
+        }
       }
     }
   },
