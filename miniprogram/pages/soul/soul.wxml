@@ -18,9 +18,9 @@
         <view class="nav-dot" style="background: #60a5fa;"></view>
         <text class="nav-label">涟漪</text>
       </view>
-      <view class="nav-item {{currentMode === 'SOLAR' ? 'active' : ''}}" bindtap="setTheme" data-mode="SOLAR">
+      <view class="nav-item {{currentMode === 'TIDAL' ? 'active' : ''}}" bindtap="setTheme" data-mode="TIDAL">
         <view class="nav-dot" style="background: #06b6d4;"></view>
-        <text class="nav-label">旋涡</text>
+        <text class="nav-label">潮汐</text>
       </view>
       <view class="nav-item {{currentMode === 'FINGER_VORTEX' ? 'active' : ''}}" bindtap="setTheme" data-mode="FINGER_VORTEX">
         <view class="nav-dot" style="background: #a855f7;"></view>

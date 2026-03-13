@@ -228,7 +228,7 @@ Page({
     this.setData({ currentMode: mode });
     currentMode = mode;
 
-    const hues = { NEBULA: 0.6, RIPPLE: 0.55, SOLAR: 0.5, FINGER_VORTEX: 0.8, CONSTELLATION: 0.65, LIGHT_PAINT: 0.0 };
+    const hues = { NEBULA: 0.6, RIPPLE: 0.55, TIDAL: 0.5, FINGER_VORTEX: 0.8, CONSTELLATION: 0.65, LIGHT_PAINT: 0.0 };
     if (particleSystem) {
       const posAttr = particleSystem.geometry.attributes.position;
       const colorAttr = particleSystem.geometry.attributes.color;
@@ -302,31 +302,33 @@ Page({
         velocities[ix] -= Math.cos(angle) * push;
         velocities[iy] -= Math.sin(angle) * push;
       }
-      else if (currentMode === 'SOLAR') {
-        // Particle tornado: strong spiral rotation + distance-based orbit
-        const idealDist = 0.5 + orbitRadii[i] * 0.8; // Each particle has its own orbit radius
-        const distError = dist - idealDist;
+      else if (currentMode === 'TIDAL') {
+        // Breathing/pulse: particles expand and contract rhythmically
+        const breathPhase = time * 0.5 + (isInteracting ? Math.PI : 0); // Touch reverses breath
+        const breathRadius = 2.0 + Math.sin(breathPhase) * 1.8;
+        const idealR = breathRadius * (0.3 + orbitRadii[i] * 0.25);
         
-        // Pull/push toward ideal orbit distance from finger
-        const radialForce = distError * 0.008;
-        velocities[ix] += (dx / (dist + 0.01)) * radialForce;
-        velocities[iy] += (dy / (dist + 0.01)) * radialForce;
-        
-        // Strong tangential rotation - creates visible spiral arms
-        const spinSpeed = 0.025 / (dist * 0.3 + 0.5);
-        velocities[ix] += (-dy / (dist + 0.01)) * spinSpeed;
-        velocities[iy] += (dx / (dist + 0.01)) * spinSpeed;
-        
-        // Touch interaction: tap to scatter outward
-        if (isInteracting && dist < 2.0) {
-          const scatter = (2.0 - dist) * 0.02;
-          velocities[ix] -= (dx / (dist + 0.01)) * scatter;
-          velocities[iy] -= (dy / (dist + 0.01)) * scatter;
+        // Smoothly push/pull toward breathing radius from center
+        const centerDist = Math.sqrt(posAttr.array[ix]**2 + posAttr.array[iy]**2);
+        const radialError = centerDist - idealR;
+        if (centerDist > 0.01) {
+          velocities[ix] -= (posAttr.array[ix] / centerDist) * radialError * 0.01;
+          velocities[iy] -= (posAttr.array[iy] / centerDist) * radialError * 0.01;
         }
         
-        // Tiny random jitter for organic feel
-        velocities[ix] += (Math.random() - 0.5) * 0.005;
-        velocities[iy] += (Math.random() - 0.5) * 0.005;
+        // Slow orbit for visual interest 
+        velocities[ix] += (-posAttr.array[iy] / (centerDist + 1)) * 0.002;
+        velocities[iy] += (posAttr.array[ix] / (centerDist + 1)) * 0.002;
+        
+        // Touch scatter: finger pushes nearby particles outward
+        if (isInteracting && dist < 3.0) {
+          const push = (3.0 - dist) * 0.01;
+          velocities[ix] -= (dx / (dist + 0.01)) * push;
+          velocities[iy] -= (dy / (dist + 0.01)) * push;
+        }
+        
+        velocities[ix] += (Math.random() - 0.5) * 0.002;
+        velocities[iy] += (Math.random() - 0.5) * 0.002;
       }
       else if (currentMode === 'FINGER_VORTEX') {
         if (isInteracting) {
@@ -360,24 +362,30 @@ Page({
         }
       }
       else if (currentMode === 'CONSTELLATION') {
-        // Scatter randomly across screen, flatten Z, gentle drift
-        posAttr.array[iz] += (0 - posAttr.array[iz]) * 0.1; // flatten to Z=0
-        velocities[ix] += (Math.random() - 0.5) * 0.001;
-        velocities[iy] += (Math.random() - 0.5) * 0.001;
-        velocities[ix] *= 0.96; velocities[iy] *= 0.96;
+        // Flatten Z
+        posAttr.array[iz] += (0 - posAttr.array[iz]) * 0.1;
         
-        // Keep particles on screen
-        if (posAttr.array[ix] < -8) velocities[ix] += 0.01;
-        if (posAttr.array[ix] > 8) velocities[ix] -= 0.01;
-        if (posAttr.array[iy] < -10) velocities[iy] += 0.01;
-        if (posAttr.array[iy] > 10) velocities[iy] -= 0.01;
+        // Store original grid position in phase-based offsets
+        const homeX = ((i % 50) / 49 - 0.5) * 14.0;
+        const homeY = -(Math.floor(i / 50) / 39 - 0.5) * 18.0;
         
-        // Brighten particles near finger
-        if (isInteracting && dist < 4.0) {
-          const glow = 1.0 - dist / 4.0;
-          const glowColor = new THREE.Color().setHSL(this.data.customHue / 360, 0.9, 0.3 + glow * 0.6);
+        if (isInteracting && dist < 3.0) {
+          // MAGNETIC DRAG: particles near finger get pulled along
+          const magnetStrength = (3.0 - dist) * 0.06;
+          velocities[ix] += dx * magnetStrength * 0.3;
+          velocities[iy] += dy * magnetStrength * 0.3;
+          
+          // Also glow
+          const glow = 1.0 - dist / 3.0;
+          const glowColor = new THREE.Color().setHSL(this.data.customHue / 360, 0.95, 0.35 + glow * 0.55);
           colorAttr.array[ix] = glowColor.r; colorAttr.array[ix+1] = glowColor.g; colorAttr.array[ix+2] = glowColor.b;
+        } else {
+          // SPRING BACK: slowly return to home position
+          velocities[ix] += (homeX - posAttr.array[ix]) * 0.02;
+          velocities[iy] += (homeY - posAttr.array[iy]) * 0.02;
         }
+        
+        velocities[ix] *= 0.9; velocities[iy] *= 0.9;
       }
       else if (currentMode === 'LIGHT_PAINT') {
         // Particles with life > 0 are active paint splashes
