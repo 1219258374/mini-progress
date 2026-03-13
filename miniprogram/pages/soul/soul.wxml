@@ -3,57 +3,57 @@
   <canvas type="webgl" id="webgl" style="width: 100%; height: 100vh; position: absolute; left: 0; top: 0; z-index: 0;" bindtouchstart="touchStart" bindtouchmove="touchMove" bindtouchend="touchEnd"></canvas>
 
   <view class="ui-layer">
-
-    <!-- 底部导航栏 -->
-    <view class="bottom-nav">
-      <!-- 免费层 -->
-      <view class="nav-item {{currentMode === 'NEBULA' ? 'active' : ''}}" bindtap="setTheme" data-mode="NEBULA">
-        <view class="nav-dot" style="background: #3b82f6;"></view>
-        <text class="nav-label">星云</text>
-      </view>
-      <view class="nav-item {{currentMode === 'FIREWORKS' ? 'active' : ''}}" bindtap="setTheme" data-mode="FIREWORKS">
-        <view class="nav-dot" style="background: #f59e0b;"></view>
-        <text class="nav-label">烟花</text>
-      </view>
-      <view class="nav-item {{currentMode === 'RAIN' ? 'active' : ''}}" bindtap="setTheme" data-mode="RAIN">
-        <view class="nav-dot" style="background: #60a5fa;"></view>
-        <text class="nav-label">雨滴</text>
-      </view>
-      <!-- 付费层 -->
-      <view class="nav-item {{currentMode === 'FINGER_VORTEX' ? 'active' : ''}}" bindtap="setTheme" data-mode="FINGER_VORTEX">
-        <view class="nav-dot" style="background: #a855f7;"></view>
-        <text class="nav-label">黑洞</text>
-      </view>
-      <view class="nav-item {{currentMode === 'FLAME' ? 'active' : ''}}" bindtap="setTheme" data-mode="FLAME">
-        <view class="nav-dot" style="background: linear-gradient(to top, #ef4444, #f59e0b);"></view>
-        <text class="nav-label">火焰</text>
-      </view>
-      <view class="nav-item {{currentMode === 'KALEIDOSCOPE' ? 'active' : ''}}" bindtap="setTheme" data-mode="KALEIDOSCOPE">
-        <view class="nav-dot" style="background: conic-gradient(#f43f5e, #f59e0b, #22c55e, #3b82f6, #a855f7, #f43f5e);"></view>
-        <text class="nav-label">万花筒</text>
-      </view>
-      <view class="nav-item {{currentMode === 'LIGHT_PAINT' ? 'active' : ''}}" bindtap="setTheme" data-mode="LIGHT_PAINT">
-        <view class="nav-dot" style="background: #f43f5e;"></view>
-        <text class="nav-label">光绘</text>
-      </view>
-      <view class="nav-item {{currentMode === 'LASER' ? 'active' : ''}}" bindtap="setTheme" data-mode="LASER">
-        <view class="nav-dot" style="background: #22d3ee;"></view>
-        <text class="nav-label">激光</text>
-      </view>
-      <view class="nav-item {{currentMode === 'TIDAL' ? 'active' : ''}}" bindtap="setTheme" data-mode="TIDAL">
-        <view class="nav-dot" style="background: #06b6d4;"></view>
-        <text class="nav-label">潮汐</text>
-      </view>
-      <view class="nav-item {{currentMode === 'RIPPLE' ? 'active' : ''}}" bindtap="setTheme" data-mode="RIPPLE">
-        <view class="nav-dot" style="background: #818cf8;"></view>
-        <text class="nav-label">涟漪</text>
-      </view>
-      <!-- 调色板 -->
-      <view class="nav-item palette-item {{showPalette ? 'active' : ''}}" bindtap="togglePalette">
-        <view class="nav-dot" style="background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);"></view>
-        <text class="nav-label">调色</text>
-      </view>
+    <!-- 顶部右上角设置按钮 -->
+    <view class="settings-btn" bindtap="togglePalette">
+      <view class="settings-icon">⚙</view>
     </view>
+
+    <!-- 悬浮特效收纳架 (Magic Rack) -->
+    <movable-area class="rack-area">
+      <movable-view class="rack-view {{isRackExpanded ? 'expanded' : 'collapsed'}}" direction="all" x="20" y="450" out-of-bounds="false">
+        
+        <!-- 收纳架头部 (点击展开/折叠) -->
+        <view class="rack-header" bindtap="toggleRack">
+          <view class="rack-icon">✨</view>
+          <text class="rack-title" wx:if="{{!isRackExpanded}}">特效</text>
+          <view class="rack-arrow" wx:if="{{isRackExpanded}}">▼</view>
+        </view>
+
+        <!-- 展开后的特效网格 -->
+        <view class="rack-grid" wx:if="{{isRackExpanded}}">
+          <view class="nav-item {{currentMode === 'NEBULA' ? 'active' : ''}}" bindtap="setTheme" data-mode="NEBULA" style="--theme-color: #3b82f6;">
+            <text class="nav-label">星云</text>
+          </view>
+          <view class="nav-item {{currentMode === 'FIREWORKS' ? 'active' : ''}}" bindtap="setTheme" data-mode="FIREWORKS" style="--theme-color: #f59e0b;">
+            <text class="nav-label">烟花</text>
+          </view>
+          <view class="nav-item {{currentMode === 'RAIN' ? 'active' : ''}}" bindtap="setTheme" data-mode="RAIN" style="--theme-color: #60a5fa;">
+            <text class="nav-label">雨滴</text>
+          </view>
+          <view class="nav-item {{currentMode === 'FINGER_VORTEX' ? 'active' : ''}}" bindtap="setTheme" data-mode="FINGER_VORTEX" style="--theme-color: #a855f7;">
+            <text class="nav-label">黑洞</text>
+          </view>
+          <view class="nav-item {{currentMode === 'FLAME' ? 'active' : ''}}" bindtap="setTheme" data-mode="FLAME" style="--theme-color: #ef4444;">
+            <text class="nav-label">火焰</text>
+          </view>
+          <view class="nav-item {{currentMode === 'KALEIDOSCOPE' ? 'active' : ''}}" bindtap="setTheme" data-mode="KALEIDOSCOPE" style="--theme-color: #10b981;">
+            <text class="nav-label">万花筒</text>
+          </view>
+          <view class="nav-item {{currentMode === 'LIGHT_PAINT' ? 'active' : ''}}" bindtap="setTheme" data-mode="LIGHT_PAINT" style="--theme-color: #f43f5e;">
+            <text class="nav-label">光绘</text>
+          </view>
+          <view class="nav-item {{currentMode === 'LASER' ? 'active' : ''}}" bindtap="setTheme" data-mode="LASER" style="--theme-color: #22d3ee;">
+            <text class="nav-label">激光</text>
+          </view>
+          <view class="nav-item {{currentMode === 'TIDAL' ? 'active' : ''}}" bindtap="setTheme" data-mode="TIDAL" style="--theme-color: #06b6d4;">
+            <text class="nav-label">潮汐</text>
+          </view>
+          <view class="nav-item {{currentMode === 'RIPPLE' ? 'active' : ''}}" bindtap="setTheme" data-mode="RIPPLE" style="--theme-color: #818cf8;">
+            <text class="nav-label">涟漪</text>
+          </view>
+        </view>
+      </movable-view>
+    </movable-area>
 
     <!-- 调色板面板 - hidden 保持 DOM -->
     <view class="palette-panel" hidden="{{!showPalette}}">

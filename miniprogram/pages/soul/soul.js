@@ -24,6 +24,9 @@ let lastMouse = { x: 0, y: 0 };
 let rippleTime = 0;
 let rippleOrigin = { x: 0, y: 0 };
 
+// System Info Cache (avoids calling API during 60fps render loop)
+let sysWinW = 375, sysWinH = 812, sysPixelRatio = 2;
+
 Page({
   data: {
     currentMode: 'NEBULA',
@@ -35,10 +38,12 @@ Page({
     customHue: 220,
     customBright: 50,
     customSize: 50,
-    customCount: 30
+    customCount: 30,
+    isRackExpanded: false
   },
 
   onLoad(options) {
+    this._initSystemInfo();
     mouse = { x: 0, y: 0 };
     target = { x: 0, y: 0 };
     energy = 0;
@@ -73,6 +78,27 @@ Page({
     wx.stopAccelerometer();
     wx.offAccelerometerChange();
     THREE = null;
+  },
+
+  _initSystemInfo() {
+    try {
+      // Modern API first (fails gracefully if undefined)
+      if (wx.getWindowInfo && wx.getDeviceInfo) {
+        const win = wx.getWindowInfo();
+        const dev = wx.getDeviceInfo();
+        sysWinW = win.windowWidth || 375;
+        sysWinH = win.windowHeight || 812;
+        sysPixelRatio = dev.pixelRatio || 2;
+      } else {
+        // Fallback to deprecated API for older WeChat versions
+        const info = wx.getSystemInfoSync();
+        sysWinW = info.windowWidth || 375;
+        sysWinH = info.windowHeight || 812;
+        sysPixelRatio = info.pixelRatio || 2;
+      }
+    } catch (e) {
+      console.warn("Failed to get system info, using defaults.");
+    }
   },
 
   _createTexture() {
@@ -114,12 +140,7 @@ Page({
     THREE = createScopedThreejs(canvas);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    let pixelRatio = 2;
-    try {
-      const info = wx.getSystemInfoSync();
-      pixelRatio = info.pixelRatio;
-    } catch(e) {}
-    renderer.setPixelRatio(Math.min(pixelRatio, 2));
+    renderer.setPixelRatio(Math.min(sysPixelRatio, 2));
     renderer.setSize(canvas.width, canvas.height);
     renderer.setClearColor(0x000000, 0); // Transparent so CSS gradient shows through
 
@@ -758,19 +779,14 @@ Page({
     isInteracting = true;
     lastMouse.x = mouse.x;
     lastMouse.y = mouse.y;
-    let winW = 375, winH = 812;
-    try {
-      const info = wx.getSystemInfoSync();
-      winW = info.windowWidth;
-      winH = info.windowHeight;
-    } catch(e) {}
+    
     // Compute exact visible world-space area from camera frustum
     const fovRad = (75 / 2) * Math.PI / 180; // half FOV in radians
     const halfH = Math.tan(fovRad) * 6; // camera.position.z = 6
-    const aspect = winW / winH;
+    const aspect = sysWinW / sysWinH;
     const halfW = halfH * aspect;
-    mouse.x = ((x / winW) * 2 - 1) * halfW;
-    mouse.y = (-(y / winH) * 2 + 1) * halfH;
+    mouse.x = ((x / sysWinW) * 2 - 1) * halfW;
+    mouse.y = (-(y / sysWinH) * 2 + 1) * halfH;
   },
 
   touchStart(e) {
@@ -866,10 +882,10 @@ Page({
             posAttr.array[idx*3]   = mouse.x + (Math.random()-0.5) * 0.05;
             posAttr.array[idx*3+1] = mouse.y + (Math.random()-0.5) * 0.05;
             posAttr.array[idx*3+2] = 0;
-            const speed = 0.05 + Math.random() * 0.05;
+            const speed = 0.15 + Math.random() * 0.1; // Tripled base speed
             velocities[idx*3]   = ndx * speed + (Math.random()-0.5) * 0.01;
             velocities[idx*3+1] = ndy * speed + (Math.random()-0.5) * 0.01;
-            particleLife[idx] = 1.5 + Math.random() * 0.5;
+            particleLife[idx] = 2.0 + Math.random() * 1.0; // Increased lifespan
           }
           posAttr.needsUpdate = true;
         }
@@ -914,6 +930,10 @@ Page({
 
   togglePalette() {
     this.setData({ showPalette: !this.data.showPalette });
+  },
+
+  toggleRack() {
+    this.setData({ isRackExpanded: !this.data.isRackExpanded });
   },
 
   onHueChange(e) {
