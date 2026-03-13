@@ -535,7 +535,7 @@ Page({
         continue; // RAIN handles its own physics, skip general update
       }
       else if (currentMode === 'FLAME') {
-        // Position-based flame: constant upward speed, no velocity drift
+        // Position-based flame: absolute X, no accumulation possible
         const flameBaseY = -2.0, flameH = 8.0;
         
         // Move up at constant speed
@@ -545,19 +545,17 @@ Page({
         const relY = posAttr.array[iy] - flameBaseY;
         const heightFrac = Math.max(0, Math.min(1, relY / flameH));
         
-        // X: direct constrain toward center with small noise
+        // X: compute ABSOLUTE position each frame (zero drift)
         const maxW = 1.2 * (1.0 - heightFrac * 0.7);
-        posAttr.array[ix] *= 0.97; // Pull toward center (x=0)
-        posAttr.array[ix] += (Math.random() - 0.5) * 0.02; // Tiny flicker
-        // Clamp X
-        if (posAttr.array[ix] > maxW) posAttr.array[ix] = maxW;
-        if (posAttr.array[ix] < -maxW) posAttr.array[ix] = -maxW;
+        const flicker = Math.sin(time * 3.0 + phase[i] * 10.0) * 0.3 
+                       + Math.sin(time * 7.0 + phase[i] * 20.0) * 0.15;
+        posAttr.array[ix] = flicker * maxW + (Math.random() - 0.5) * 0.01;
         
-        // Finger interaction: attract nearby particles
-        if (isInteracting && dist < 3.0) {
-          const attract = (3.0 - dist) * 0.03;
-          posAttr.array[ix] += (dx / (dist + 0.01)) * attract;
-          posAttr.array[iy] += (dy / (dist + 0.01)) * attract * 0.5;
+        // Interaction: finger near flame SCATTERS particles (poke embers)
+        if (isInteracting && dist < 2.0) {
+          const push = (2.0 - dist) * 0.15;
+          posAttr.array[ix] -= (dx / (dist + 0.01)) * push;
+          posAttr.array[iy] -= (dy / (dist + 0.01)) * push * 0.3;
         }
         
         // Wrap: recycle at top back to bottom
@@ -572,7 +570,7 @@ Page({
         const fBright = 0.3 + (1.0 - heightFrac) * 0.55;
         const flameColor = new THREE.Color().setHSL(fHue, 1.0, Math.min(0.85, fBright));
         colorAttr.array[ix] = flameColor.r; colorAttr.array[ix+1] = flameColor.g; colorAttr.array[ix+2] = flameColor.b;
-        continue;
+        continue; // Critical: skip general position/color updates
       }
 
       velocities[ix] *= 0.94; velocities[iy] *= 0.94;
@@ -614,7 +612,11 @@ Page({
       vortexCharge = 0;
     }
 
-    particleSystem.rotation.z += 0.0001;
+    // Only rotate the global system for orbital modes
+    if (currentMode !== 'FLAME' && currentMode !== 'RAIN' && currentMode !== 'LASER') {
+      particleSystem.rotation.z += 0.0001;
+    }
+
     renderer.render(scene, camera);
   },
 
