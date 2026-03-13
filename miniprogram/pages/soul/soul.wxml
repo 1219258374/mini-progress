@@ -3,76 +3,93 @@
   <canvas type="webgl" id="webgl" style="width: 100%; height: 100vh; position: absolute; left: 0; top: 0; z-index: 0;" bindtouchstart="touchStart" bindtouchmove="touchMove" bindtouchend="touchEnd"></canvas>
 
   <view class="ui-layer">
-    <!-- 顶部右上角设置按钮 -->
-    <view class="settings-btn" bindtap="togglePalette">
-      <view class="settings-icon">⚙</view>
+    <!-- 右侧设置抽屉 (Right Settings Drawer) -->
+    <view class="settings-drawer {{showPalette ? 'expanded' : 'collapsed'}}">
+      <!-- 抽屉头部 (纯图标把手) -->
+      <view class="settings-handle" bindtap="togglePalette">
+        <view class="settings-icon">⚙</view>
+      </view>
+
+      <!-- 展开的调色板面板 -->
+      <view class="palette-panel">
+        <view class="palette-row">
+          <view class="palette-label">色相</view>
+          <slider class="palette-slider" min="0" max="360" value="{{customHue}}" activeColor="#60a5fa" block-size="14" bindchanging="onHueChange" bindchange="onHueChange" />
+        </view>
+        <view class="palette-row">
+          <view class="palette-label">亮度</view>
+          <slider class="palette-slider" min="10" max="100" value="{{customBright}}" activeColor="#60a5fa" block-size="14" bindchanging="onBrightChange" bindchange="onBrightChange" />
+        </view>
+        <view class="palette-row">
+          <view class="palette-label">大小</view>
+          <slider class="palette-slider" min="10" max="100" value="{{customSize}}" activeColor="#60a5fa" block-size="14" bindchanging="onSizeChange" bindchange="onSizeChange" />
+        </view>
+        <view class="palette-row">
+          <view class="palette-label">数量</view>
+          <slider class="palette-slider" min="10" max="100" value="{{customCount}}" activeColor="#60a5fa" block-size="14" bindchanging="onCountChange" bindchange="onCountChange" />
+        </view>
+      </view>
     </view>
 
-    <!-- 悬浮特效收纳架 (Magic Rack) -->
-    <movable-area class="rack-area">
-      <movable-view class="rack-view {{isRackExpanded ? 'expanded' : 'collapsed'}}" direction="all" x="20" y="450" out-of-bounds="false">
-        
-        <!-- 收纳架头部 (点击展开/折叠) -->
-        <view class="rack-header" bindtap="toggleRack">
-          <view class="rack-icon">✨</view>
-          <text class="rack-title" wx:if="{{!isRackExpanded}}">特效</text>
-          <view class="rack-arrow" wx:if="{{isRackExpanded}}">▼</view>
+    <!-- 侧边伸缩特效抽屉 (Magic Side Drawer) -->
+    <view class="side-drawer {{isRackExpanded ? 'expanded' : 'collapsed'}}">
+      <!-- 抽屉头部 (纯图标把手) -->
+      <view class="drawer-handle" bindtap="toggleRack">
+        <view class="handle-icon">{{isRackExpanded ? '‹' : '›'}}</view>
+        <view class="handle-dots" wx:if="{{!isRackExpanded}}">
+          <view class="dot"></view>
+          <view class="dot"></view>
+          <view class="dot"></view>
         </view>
+      </view>
 
-        <!-- 展开后的特效网格 -->
-        <view class="rack-grid" wx:if="{{isRackExpanded}}">
+      <!-- 展开后的特效列表 (移除 wx:if，纯靠 CSS transform，以便支持收起动画) -->
+      <scroll-view scroll-y class="drawer-content">
+        <view class="drawer-grid">
           <view class="nav-item {{currentMode === 'NEBULA' ? 'active' : ''}}" bindtap="setTheme" data-mode="NEBULA" style="--theme-color: #3b82f6;">
+            <view class="nav-icon" style="background-image: url('{{icons.NEBULA}}')"></view>
             <text class="nav-label">星云</text>
           </view>
           <view class="nav-item {{currentMode === 'FIREWORKS' ? 'active' : ''}}" bindtap="setTheme" data-mode="FIREWORKS" style="--theme-color: #f59e0b;">
+            <view class="nav-icon" style="background-image: url('{{icons.FIREWORKS}}')"></view>
             <text class="nav-label">烟花</text>
           </view>
           <view class="nav-item {{currentMode === 'RAIN' ? 'active' : ''}}" bindtap="setTheme" data-mode="RAIN" style="--theme-color: #60a5fa;">
+            <view class="nav-icon" style="background-image: url('{{icons.RAIN}}')"></view>
             <text class="nav-label">雨滴</text>
           </view>
           <view class="nav-item {{currentMode === 'FINGER_VORTEX' ? 'active' : ''}}" bindtap="setTheme" data-mode="FINGER_VORTEX" style="--theme-color: #a855f7;">
+            <view class="nav-icon" style="background-image: url('{{icons.FINGER_VORTEX}}')"></view>
             <text class="nav-label">黑洞</text>
           </view>
           <view class="nav-item {{currentMode === 'FLAME' ? 'active' : ''}}" bindtap="setTheme" data-mode="FLAME" style="--theme-color: #ef4444;">
+            <view class="nav-icon" style="background-image: url('{{icons.FLAME}}')"></view>
             <text class="nav-label">火焰</text>
           </view>
           <view class="nav-item {{currentMode === 'KALEIDOSCOPE' ? 'active' : ''}}" bindtap="setTheme" data-mode="KALEIDOSCOPE" style="--theme-color: #10b981;">
+            <view class="nav-icon" style="background-image: url('{{icons.KALEIDOSCOPE}}')"></view>
             <text class="nav-label">万花筒</text>
           </view>
           <view class="nav-item {{currentMode === 'LIGHT_PAINT' ? 'active' : ''}}" bindtap="setTheme" data-mode="LIGHT_PAINT" style="--theme-color: #f43f5e;">
+            <view class="nav-icon" style="background-image: url('{{icons.LIGHT_PAINT}}')"></view>
             <text class="nav-label">光绘</text>
           </view>
           <view class="nav-item {{currentMode === 'LASER' ? 'active' : ''}}" bindtap="setTheme" data-mode="LASER" style="--theme-color: #22d3ee;">
+            <view class="nav-icon" style="background-image: url('{{icons.LASER}}')"></view>
             <text class="nav-label">激光</text>
           </view>
           <view class="nav-item {{currentMode === 'TIDAL' ? 'active' : ''}}" bindtap="setTheme" data-mode="TIDAL" style="--theme-color: #06b6d4;">
+            <view class="nav-icon" style="background-image: url('{{icons.TIDAL}}')"></view>
             <text class="nav-label">潮汐</text>
           </view>
           <view class="nav-item {{currentMode === 'RIPPLE' ? 'active' : ''}}" bindtap="setTheme" data-mode="RIPPLE" style="--theme-color: #818cf8;">
+            <view class="nav-icon" style="background-image: url('{{icons.RIPPLE}}')"></view>
             <text class="nav-label">涟漪</text>
           </view>
         </view>
-      </movable-view>
-    </movable-area>
-
-    <!-- 调色板面板 - hidden 保持 DOM -->
-    <view class="palette-panel" hidden="{{!showPalette}}">
-      <view class="palette-row">
-        <view class="palette-label">色相</view>
-        <slider class="palette-slider" min="0" max="360" value="{{customHue}}" activeColor="#60a5fa" block-size="14" bindchanging="onHueChange" bindchange="onHueChange" />
-      </view>
-      <view class="palette-row">
-        <view class="palette-label">亮度</view>
-        <slider class="palette-slider" min="10" max="100" value="{{customBright}}" activeColor="#60a5fa" block-size="14" bindchanging="onBrightChange" bindchange="onBrightChange" />
-      </view>
-      <view class="palette-row">
-        <view class="palette-label">大小</view>
-        <slider class="palette-slider" min="10" max="100" value="{{customSize}}" activeColor="#60a5fa" block-size="14" bindchanging="onSizeChange" bindchange="onSizeChange" />
-      </view>
-      <view class="palette-row">
-        <view class="palette-label">数量</view>
-        <slider class="palette-slider" min="10" max="100" value="{{customCount}}" activeColor="#60a5fa" block-size="14" bindchanging="onCountChange" bindchange="onCountChange" />
-      </view>
+      </scroll-view>
     </view>
+
+
   </view>
 </view>

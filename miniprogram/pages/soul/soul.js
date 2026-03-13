@@ -1,5 +1,23 @@
 import { createScopedThreejs } from 'threejs-miniprogram'
 
+const makeSVG = (paths) => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+  return "data:image/svg+xml," + encodeURIComponent(svg).replace(/'/g, "%27");
+};
+
+const ICONS = {
+  NEBULA: makeSVG('<ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(45 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(-45 12 12)"/><circle cx="12" cy="12" r="2"/>'),
+  FIREWORKS: makeSVG('<path d="M12 22V12m0 0l4-4m-4 4l-4-4m4 4l6 2m-6-2l-6 2m6-2l3 5m-3-5l-3 5"/>'),
+  RAIN: makeSVG('<path d="M12 22c4 0 6-3 6-7s-6-11-6-11-6 7-6 11 2 7 6 7z"/>'),
+  FINGER_VORTEX: makeSVG('<path d="M12 2a10 10 0 100 20 10 10 0 100-20z" stroke-dasharray="4 4"/><circle cx="12" cy="12" r="3"/>'),
+  FLAME: makeSVG('<path d="M12 2C10 6 7 9 7 13a5 5 0 0010 0c0-4-3-7-5-11z"/><path d="M12 6c-1 3-3 5-3 8a3 3 0 006 0c0-3-2-5-3-8z"/><path d="M12 10c-.5 1.5-1.5 3-1.5 5a1.5 1.5 0 003 0c0-2-1-3.5-1.5-5z"/>'),
+  KALEIDOSCOPE: makeSVG('<path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M4.93 19.07l14.14-14.14"/>'),
+  LIGHT_PAINT: makeSVG('<path d="M18.5 5.5l-10 10M2 22l3-3m11-11a2.121 2.121 0 00-3-3L3.5 14.5a2.121 2.121 0 000 3l1.5 1.5a2.121 2.121 0 003 0L19.5 7.5a2.121 2.121 0 000-3l-1-1z"/>'),
+  LASER: makeSVG('<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7M22 12h-4M12 2v4M12 22v-4M2 12h4"/>'),
+  TIDAL: makeSVG('<path d="M2 12c3-3 6-3 9 0s6 3 9 0M2 18c3-3 6-3 9 0s6 3 9 0"/>'),
+  RIPPLE: makeSVG('<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="11"/>')
+};
+
 let THREE;
 let canvas;
 let scene, camera, renderer, particleSystem;
@@ -29,6 +47,7 @@ let sysWinW = 375, sysWinH = 812, sysPixelRatio = 2;
 
 Page({
   data: {
+    icons: ICONS,
     currentMode: 'NEBULA',
     progNum: 0,
     energy: 0,
@@ -39,7 +58,7 @@ Page({
     customBright: 50,
     customSize: 50,
     customCount: 30,
-    isRackExpanded: false
+    isRackExpanded: true
   },
 
   onLoad(options) {

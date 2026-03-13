@@ -60,109 +60,147 @@ page {
   z-index: 10;
 }
 
-/* ========== Top Right Settings Button ========== */
-.settings-btn {
+/* ========== Right Settings Drawer ========== */
+.settings-drawer {
   position: absolute;
-  top: calc(env(safe-area-inset-top) + 20rpx);
-  right: 32rpx;
-  width: 80rpx;
-  height: 80rpx;
-  background: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(20rpx);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 50%;
+  bottom: 60rpx; /* Anchored near bottom right */
+  right: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: auto;
-  transition: all 0.3s ease;
+  align-items: stretch;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(30rpx);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-right: none;
+  border-radius: 40rpx 0 0 40rpx;
+  box-shadow: -16rpx 0 48rpx rgba(0,0,0,0.6);
   z-index: 40;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: auto;
 }
 
-.settings-btn:active {
-  transform: scale(0.9);
-  background: rgba(30, 41, 59, 0.8);
+.settings-drawer.collapsed {
+  transform: translateX(100%);
+}
+
+.settings-drawer.expanded {
+  transform: translateX(0);
+}
+
+.settings-handle {
+  width: 60rpx;
+  height: 160rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  left: -60rpx;
+  bottom: 60rpx; /* Positioned near the bottom of the drawer */
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(30rpx);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-right: none;
+  border-radius: 24rpx 0 0 24rpx;
+  box-shadow: -8rpx 0 24rpx rgba(0,0,0,0.4);
 }
 
 .settings-icon {
-  font-size: 40rpx;
+  font-size: 32rpx;
   color: rgba(255, 255, 255, 0.8);
   line-height: 1;
 }
 
-/* ========== Magic Rack (Floating Effects Dragger) ========== */
-.rack-area {
+/* ========== Magic Side Drawer (特效侧边抽屉) ========== */
+.side-drawer {
   position: absolute;
-  top: 0;
+  top: 40rpx; /* Anchored near top left */
   left: 0;
-  width: 100vw;
-  height: 100vh;
-  pointer-events: none;
-  z-index: 20;
-}
-
-.rack-view {
-  pointer-events: auto;
+  display: flex;
+  align-items: stretch;
   background: rgba(15, 23, 42, 0.7);
   backdrop-filter: blur(30rpx);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 16rpx 48rpx rgba(0,0,0,0.6);
+  border-left: none;
+  border-radius: 0 40rpx 40rpx 0;
+  box-shadow: 16rpx 0 48rpx rgba(0,0,0,0.6);
+  z-index: 20;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: auto;
+}
+
+.side-drawer.collapsed {
+  transform: translateX(-100%);
+}
+
+.side-drawer.expanded {
+  transform: translateX(0);
+}
+
+/* 抽屉边缘的把手 */
+.drawer-handle {
+  width: 60rpx;
+  height: 160rpx;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-}
-
-.rack-view.collapsed {
-  width: auto;
-  height: auto;
-  border-radius: 999rpx;
-}
-
-.rack-view.expanded {
-  width: 340rpx;
-  border-radius: 40rpx;
-  padding-bottom: 24rpx;
-}
-
-.rack-header {
-  display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20rpx 32rpx;
-  gap: 16rpx;
+  position: absolute;
+  right: -60rpx;
+  top: 60rpx; /* Positioned near top of the drawer */
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(30rpx);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-left: none;
+  border-radius: 0 24rpx 24rpx 0;
+  box-shadow: 8rpx 0 24rpx rgba(0,0,0,0.4);
 }
 
-.rack-icon {
+.handle-icon {
   font-size: 32rpx;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 8rpx;
 }
 
-.rack-title {
-  font-size: 26rpx;
-  color: #f8fafc;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  white-space: nowrap;
+.handle-dots {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  opacity: 0.5;
 }
 
-.rack-arrow {
-  font-size: 20rpx;
-  color: rgba(255, 255, 255, 0.5);
-  margin-left: auto;
+.handle-dots .dot {
+  width: 6rpx;
+  height: 6rpx;
+  background: #fff;
+  border-radius: 50%;
 }
 
-.rack-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 32rpx 16rpx;
-  padding: 12rpx 24rpx 0;
+/* 展开后的内容区 */
+.drawer-content {
+  width: 180rpx;
+  max-height: 60vh;
+}
+
+/* 隐藏 scroll-view 滚动条 */
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  color: transparent;
+}
+
+.drawer-grid {
+  display: flex;
+  flex-direction: column;
+  padding: 32rpx 0;
+  gap: 24rpx;
 }
 
 .nav-item {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 12rpx;
-  padding: 10rpx 0;
+  gap: 16rpx;
+  padding: 16rpx 20rpx;
   position: relative;
   transition: all 0.3s ease;
   opacity: 0.6;
@@ -170,11 +208,26 @@ page {
 
 .nav-item.active {
   opacity: 1;
-  transform: translateY(-4rpx);
+  transform: translateX(8rpx);
+}
+
+.nav-icon {
+  width: 36rpx;
+  height: 36rpx;
+  transition: all 0.3s ease;
+  filter: grayscale(100%);
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.nav-item.active .nav-icon {
+  filter: grayscale(0%);
+  transform: scale(1.1);
 }
 
 .nav-label {
-  font-size: 24rpx;
+  font-size: 26rpx;
   color: #f8fafc;
   font-family: sans-serif;
   letter-spacing: 0.05em;
@@ -187,43 +240,35 @@ page {
   text-shadow: 0 0 16rpx var(--theme-color), 0 0 4rpx rgba(255,255,255,0.8);
 }
 
-/* 底部发光指示条 (Glowing Underscore) */
-.nav-item::after {
+/* 左侧边条指示器 (Glowing Left Border) */
+.nav-item::before {
   content: '';
   position: absolute;
-  bottom: -4rpx;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 4rpx;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6rpx;
+  height: 0;
   background: var(--theme-color);
-  border-radius: 4rpx;
+  border-radius: 6rpx;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 0 12rpx var(--theme-color);
   opacity: 0;
 }
 
-.nav-item.active::after {
-  width: 80%;
+.nav-item.active::before {
+  height: 60%;
   opacity: 1;
 }
 
-/* ========== Palette Panel ========== */
+/* ========== Palette Panel Content ========== */
 .palette-panel {
-  position: fixed;
-  bottom: calc(120rpx + env(safe-area-inset-bottom));
-  left: 32rpx;
-  right: 32rpx;
-  background: rgba(5, 15, 35, 0.92);
-  backdrop-filter: blur(30rpx);
-  border: 1px solid rgba(59, 130, 246, 0.15);
-  border-radius: 28rpx;
-  padding: 24rpx 28rpx;
-  pointer-events: auto;
-  z-index: 30;
+  width: 440rpx;
+  padding: 32rpx 28rpx;
   display: flex;
   flex-direction: column;
-  gap: 12rpx;
+  gap: 24rpx;
+  box-sizing: border-box;
 }
 
 .palette-row {
