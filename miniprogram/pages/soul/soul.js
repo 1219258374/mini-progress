@@ -14,6 +14,8 @@ let positions, velocities, colors, orbitRadii, phase;
 let reqId;
 let gravity = { x: 0, y: 0 };
 let ripples = [];
+let vortexCharge = 0; // Accumulates while finger is held down in FINGER_VORTEX mode
+let justReleased = false; // Flag to trigger explosion on touchEnd
 
 Page({
   data: {
@@ -203,7 +205,7 @@ Page({
     this.setData({ currentMode: mode });
     currentMode = mode;
 
-    const hues = { NEBULA: 0.6, RIPPLE: 0.55, SOLAR: 0.5, METEOR_SHOWER: 0.1, LIQUID_WAVE: 0.48 };
+    const hues = { NEBULA: 0.6, RIPPLE: 0.55, SOLAR: 0.5, FINGER_VORTEX: 0.8, LIQUID_WAVE: 0.48 };
     if (particleSystem) {
       const colorAttr = particleSystem.geometry.attributes.color;
       const newCol = new THREE.Color().setHSL(hues[mode], 0.9, 0.5);
@@ -212,8 +214,8 @@ Page({
       }
       colorAttr.needsUpdate = true;
       
-      // Tell the shader if we are in meteor mode to trigger the streak shaping
-      particleSystem.material.uniforms.isMeteor.value = (mode === 'METEOR_SHOWER') ? 1.0 : 0.0;
+      // No longer need meteor shader mode
+      particleSystem.material.uniforms.isMeteor.value = 0.0;
     }
   },
 
@@ -261,39 +263,34 @@ Page({
         velocities[ix] += dx * pull;
         velocities[iy] += dy * pull;
       }
-      else if (currentMode === 'METEOR_SHOWER') {
-        // Only 1 out of 5 particles become meteors
-        if (i % 5 !== 0) {
-           velocities[iy] += (15.0 - posAttr.array[iy]) * 0.1;
-           velocities[ix] *= 0.8;
+      else if (currentMode === 'FINGER_VORTEX') {
+        if (isInteracting) {
+          // SUCK IN: particles spiral toward the finger
+          vortexCharge = Math.min(vortexCharge + 0.02, 1.0);
+          
+          const pullStrength = 0.03 + vortexCharge * 0.05;
+          const orbitStrength = 0.04 + vortexCharge * 0.03;
+          
+          if (dist > 0.3) {
+            // Pull toward finger
+            velocities[ix] += (dx / dist) * pullStrength;
+            velocities[iy] += (dy / dist) * pullStrength;
+            
+            // Add perpendicular orbit force for swirling effect
+            velocities[ix] += (-dy / dist) * orbitStrength;
+            velocities[iy] += (dx / dist) * orbitStrength;
+          }
+        } else if (justReleased) {
+          // EXPLODE: fling particles outward from where the finger was
+          const explosionForce = 0.3 + vortexCharge * 0.5;
+          if (dist > 0.01 && dist < 8.0) {
+            velocities[ix] -= (dx / dist) * explosionForce * (1.0 / (dist * 0.5 + 0.5));
+            velocities[iy] -= (dy / dist) * explosionForce * (1.0 / (dist * 0.5 + 0.5));
+          }
         } else {
-           // Fall direction follows the gravity vector (phone tilt)
-           const gx = gravity.x;
-           const gy = gravity.y;
-           const gMag = Math.sqrt(gx*gx + gy*gy) || 0.001;
-           
-           // Speed proportional to tilt magnitude, capped at maxSpeed
-           const maxSpeed = 0.15;
-           const rawSpeed = Math.min(maxSpeed, gMag * 1.5);
-           
-           // Apply velocity in the direction of gravity 
-           velocities[ix] += (gx / gMag) * rawSpeed * 0.3;
-           velocities[iy] += (gy / gMag) * rawSpeed * 0.3;
-           
-           // Touch interaction: swipe to scatter meteors
-           if (isInteracting && dist < 2.5) {
-              velocities[ix] -= (dx / dist) * 0.15;
-              velocities[iy] -= (dy / dist) * 0.15;
-           }
-
-           // If particle goes off any edge, respawn from opposite side
-           if (posAttr.array[iy] < -12 || posAttr.array[iy] > 18 || 
-               posAttr.array[ix] < -14 || posAttr.array[ix] > 14) {
-              posAttr.array[iy] = (Math.random() - 0.5) * 20;
-              posAttr.array[ix] = (Math.random() - 0.5) * 20;
-              velocities[iy] = 0;
-              velocities[ix] = 0;
-           }
+          // Idle: gentle random drift
+          velocities[ix] += (Math.random() - 0.5) * 0.003;
+          velocities[iy] += (Math.random() - 0.5) * 0.003;
         }
       }
       else if (currentMode === 'LIQUID_WAVE') {
@@ -349,7 +346,7 @@ Page({
       
       posAttr.array[ix] += velocities[ix]; posAttr.array[iy] += velocities[iy];
 
-      if (currentMode !== 'RIPPLE' && currentMode !== 'METEOR_SHOWER' && currentMode !== 'LIQUID_WAVE') {
+      if (currentMode !== 'RIPPLE' && currentMode !== 'FINGER_VORTEX' && currentMode !== 'LIQUID_WAVE') {
         posAttr.array[iz] += Math.sin(time + phase[i]) * 0.002;
       }
 
@@ -369,9 +366,10 @@ Page({
       particleSystem.material.uniforms.particleSize.value = 1.0 + (this.data.customSize / 100) * 10.0;
     }
 
-    // Update gravity angle for the meteor shader streak rotation
-    if (currentMode === 'METEOR_SHOWER' && particleSystem) {
-      particleSystem.material.uniforms.gravityAngle.value = Math.atan2(gravity.y, gravity.x);
+    // Clear the justReleased flag after one frame of explosion
+    if (justReleased) {
+      justReleased = false;
+      vortexCharge = 0;
     }
 
     particleSystem.rotation.z += 0.0001;
@@ -401,6 +399,10 @@ Page({
   },
 
   touchEnd(e) {
+    // Trigger explosion in FINGER_VORTEX mode
+    if (currentMode === 'FINGER_VORTEX' && isInteracting && vortexCharge > 0.05) {
+      justReleased = true;
+    }
     isInteracting = false;
   },
 
