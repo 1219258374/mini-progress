@@ -8,19 +8,39 @@
       <view class="glass-pill outfit tracking-widest text-blue-400">BLUEPRINT // LAB V3.3</view>
     </view>
 
-    <!-- 侧边主题 -->
-    <view class="theme-panel">
-      <view class="theme-item {{currentMode === 'NEBULA' ? 'active' : ''}}" style="color: #3b82f6; background: #3b82f6;" bindtap="setTheme" data-mode="NEBULA"></view>
-      <view class="theme-item {{currentMode === 'RIPPLE' ? 'active' : ''}}" style="color: #60a5fa; background: #60a5fa;" bindtap="setTheme" data-mode="RIPPLE"></view>
-      <view class="theme-item {{currentMode === 'SOLAR' ? 'active' : ''}}" style="color: #06b6d4; background: #06b6d4;" bindtap="setTheme" data-mode="SOLAR"></view>
-      <view class="theme-item {{currentMode === 'FINGER_VORTEX' ? 'active' : ''}}" style="color: #a855f7; background: #a855f7;" bindtap="setTheme" data-mode="FINGER_VORTEX"></view>
-      <view class="theme-item {{currentMode === 'CONSTELLATION' ? 'active' : ''}}" style="color: #2dd4bf; background: #2dd4bf;" bindtap="setTheme" data-mode="CONSTELLATION"></view>
-      <view class="theme-item {{currentMode === 'LIGHT_PAINT' ? 'active' : ''}}" style="color: #f43f5e; background: #f43f5e;" bindtap="setTheme" data-mode="LIGHT_PAINT"></view>
-      <!-- 调色板按钮 -->
-      <view class="theme-item palette-btn {{showPalette ? 'active' : ''}}" style="background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);" bindtap="togglePalette"></view>
+    <!-- 底部导航栏 -->
+    <view class="bottom-nav">
+      <view class="nav-item {{currentMode === 'NEBULA' ? 'active' : ''}}" bindtap="setTheme" data-mode="NEBULA">
+        <view class="nav-dot" style="background: #3b82f6;"></view>
+        <text class="nav-label">星云</text>
+      </view>
+      <view class="nav-item {{currentMode === 'RIPPLE' ? 'active' : ''}}" bindtap="setTheme" data-mode="RIPPLE">
+        <view class="nav-dot" style="background: #60a5fa;"></view>
+        <text class="nav-label">涟漪</text>
+      </view>
+      <view class="nav-item {{currentMode === 'SOLAR' ? 'active' : ''}}" bindtap="setTheme" data-mode="SOLAR">
+        <view class="nav-dot" style="background: #06b6d4;"></view>
+        <text class="nav-label">旋涡</text>
+      </view>
+      <view class="nav-item {{currentMode === 'FINGER_VORTEX' ? 'active' : ''}}" bindtap="setTheme" data-mode="FINGER_VORTEX">
+        <view class="nav-dot" style="background: #a855f7;"></view>
+        <text class="nav-label">黑洞</text>
+      </view>
+      <view class="nav-item {{currentMode === 'CONSTELLATION' ? 'active' : ''}}" bindtap="setTheme" data-mode="CONSTELLATION">
+        <view class="nav-dot" style="background: #2dd4bf;"></view>
+        <text class="nav-label">星座</text>
+      </view>
+      <view class="nav-item {{currentMode === 'LIGHT_PAINT' ? 'active' : ''}}" bindtap="setTheme" data-mode="LIGHT_PAINT">
+        <view class="nav-dot" style="background: #f43f5e;"></view>
+        <text class="nav-label">光绘</text>
+      </view>
+      <view class="nav-item palette-item {{showPalette ? 'active' : ''}}" bindtap="togglePalette">
+        <view class="nav-dot" style="background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);"></view>
+        <text class="nav-label">调色</text>
+      </view>
     </view>
 
-    <!-- 调色板面板 (底部) - 用 hidden 保持 DOM 不销毁, 避免滑块值重置 -->
+    <!-- 调色板面板 - hidden 保持 DOM -->
     <view class="palette-panel" hidden="{{!showPalette}}">
       <view class="palette-row">
         <view class="palette-label">色相</view>

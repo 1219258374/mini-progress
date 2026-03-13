@@ -230,12 +230,26 @@ Page({
 
     const hues = { NEBULA: 0.6, RIPPLE: 0.55, SOLAR: 0.5, FINGER_VORTEX: 0.8, CONSTELLATION: 0.65, LIGHT_PAINT: 0.0 };
     if (particleSystem) {
+      const posAttr = particleSystem.geometry.attributes.position;
       const colorAttr = particleSystem.geometry.attributes.color;
       const newCol = new THREE.Color().setHSL(hues[mode] || 0.6, 0.9, 0.5);
+
+      // When leaving LIGHT_PAINT, particles are at z=-100 and need full reset
+      const needsReset = (mode !== 'LIGHT_PAINT') && particleLife && particleLife[0] !== -1;
+
       for (let i = 0; i < particleCount; i++) {
         colorAttr.array[i * 3] = newCol.r; colorAttr.array[i * 3 + 1] = newCol.g; colorAttr.array[i * 3 + 2] = newCol.b;
+        
+        if (needsReset) {
+          posAttr.array[i*3]   = (Math.random() - 0.5) * 20;
+          posAttr.array[i*3+1] = (Math.random() - 0.5) * 20;
+          posAttr.array[i*3+2] = (Math.random() - 0.5) * 5;
+          velocities[i*3] = 0; velocities[i*3+1] = 0;
+          particleLife[i] = -1;
+        }
       }
       colorAttr.needsUpdate = true;
+      if (needsReset) posAttr.needsUpdate = true;
       particleSystem.material.uniforms.isMeteor.value = 0.0;
     }
 
@@ -245,11 +259,16 @@ Page({
     // Reset paint particles when entering LIGHT_PAINT
     if (mode === 'LIGHT_PAINT' && particleLife) {
       const posAttr = particleSystem.geometry.attributes.position;
+      const colorAttr = particleSystem.geometry.attributes.color;
       for (let i = 0; i < particleCount; i++) {
-        particleLife[i] = 0; // All start dead (invisible)
-        posAttr.array[i*3+2] = -100; // Push off screen
+        particleLife[i] = 0;
+        posAttr.array[i*3]   = 9999;
+        posAttr.array[i*3+1] = 9999;
+        posAttr.array[i*3+2] = 9999;
+        colorAttr.array[i*3] = 0; colorAttr.array[i*3+1] = 0; colorAttr.array[i*3+2] = 0;
       }
       posAttr.needsUpdate = true;
+      colorAttr.needsUpdate = true;
       paintIndex = 0;
     }
   },
@@ -284,11 +303,30 @@ Page({
         velocities[iy] -= Math.sin(angle) * push;
       }
       else if (currentMode === 'SOLAR') {
-        velocities[ix] += (Math.random() - 0.5) * 0.02;
-        velocities[iy] += (Math.random() - 0.5) * 0.02;
-        const pull = Math.min(0.008, 0.6 / (dist + 5));
-        velocities[ix] += dx * pull;
-        velocities[iy] += dy * pull;
+        // Particle tornado: strong spiral rotation + distance-based orbit
+        const idealDist = 0.5 + orbitRadii[i] * 0.8; // Each particle has its own orbit radius
+        const distError = dist - idealDist;
+        
+        // Pull/push toward ideal orbit distance from finger
+        const radialForce = distError * 0.008;
+        velocities[ix] += (dx / (dist + 0.01)) * radialForce;
+        velocities[iy] += (dy / (dist + 0.01)) * radialForce;
+        
+        // Strong tangential rotation - creates visible spiral arms
+        const spinSpeed = 0.025 / (dist * 0.3 + 0.5);
+        velocities[ix] += (-dy / (dist + 0.01)) * spinSpeed;
+        velocities[iy] += (dx / (dist + 0.01)) * spinSpeed;
+        
+        // Touch interaction: tap to scatter outward
+        if (isInteracting && dist < 2.0) {
+          const scatter = (2.0 - dist) * 0.02;
+          velocities[ix] -= (dx / (dist + 0.01)) * scatter;
+          velocities[iy] -= (dy / (dist + 0.01)) * scatter;
+        }
+        
+        // Tiny random jitter for organic feel
+        velocities[ix] += (Math.random() - 0.5) * 0.005;
+        velocities[iy] += (Math.random() - 0.5) * 0.005;
       }
       else if (currentMode === 'FINGER_VORTEX') {
         if (isInteracting) {
@@ -322,19 +360,22 @@ Page({
         }
       }
       else if (currentMode === 'CONSTELLATION') {
-        // Static grid: particles settle into position
-        const cols = 50;
-        const rows = 40;
-        const gx = ((i % cols) / (cols - 1) - 0.5) * 12.0;
-        const gy = -(Math.floor(i / cols) / (rows - 1) - 0.5) * 16.0;
-        velocities[ix] += (gx - posAttr.array[ix]) * 0.06;
-        velocities[iy] += (gy - posAttr.array[iy]) * 0.06;
-        velocities[ix] *= 0.85; velocities[iy] *= 0.85;
+        // Scatter randomly across screen, flatten Z, gentle drift
+        posAttr.array[iz] += (0 - posAttr.array[iz]) * 0.1; // flatten to Z=0
+        velocities[ix] += (Math.random() - 0.5) * 0.001;
+        velocities[iy] += (Math.random() - 0.5) * 0.001;
+        velocities[ix] *= 0.96; velocities[iy] *= 0.96;
+        
+        // Keep particles on screen
+        if (posAttr.array[ix] < -8) velocities[ix] += 0.01;
+        if (posAttr.array[ix] > 8) velocities[ix] -= 0.01;
+        if (posAttr.array[iy] < -10) velocities[iy] += 0.01;
+        if (posAttr.array[iy] > 10) velocities[iy] -= 0.01;
         
         // Brighten particles near finger
         if (isInteracting && dist < 4.0) {
           const glow = 1.0 - dist / 4.0;
-          const glowColor = new THREE.Color().setHSL(this.data.customHue / 360, 0.9, 0.4 + glow * 0.5);
+          const glowColor = new THREE.Color().setHSL(this.data.customHue / 360, 0.9, 0.3 + glow * 0.6);
           colorAttr.array[ix] = glowColor.r; colorAttr.array[ix+1] = glowColor.g; colorAttr.array[ix+2] = glowColor.b;
         }
       }
@@ -356,8 +397,14 @@ Page({
           colorAttr.array[ix] = paintColor.r; colorAttr.array[ix+1] = paintColor.g; colorAttr.array[ix+2] = paintColor.b;
           
           if (particleLife[i] <= 0) {
-            posAttr.array[iz] = -100; // Hide dead particle
+            posAttr.array[ix] = 9999; // Move completely out of frustum
+            posAttr.array[iy] = 9999;
+            posAttr.array[iz] = 9999;
+            colorAttr.array[ix] = 0; colorAttr.array[ix+1] = 0; colorAttr.array[ix+2] = 0;
           }
+        } else {
+          // Dead paint particles: skip all general physics below
+          continue;
         }
       }
 
@@ -381,9 +428,9 @@ Page({
       const speed = Math.sqrt(velocities[ix] ** 2 + velocities[iy] ** 2);
       const userHue = this.data.customHue / 360;
       const userBright = this.data.customBright / 100;
-      const brightness = Math.max(0.15, Math.min(0.95, userBright * 0.8 + speed * 5.0));
+      const brightness = Math.max(0.15, Math.min(0.65, userBright * 0.5 + speed * 1.5 + 0.1));
       const color = new THREE.Color();
-      color.setHSL(userHue + speed * 0.1, 0.85, brightness);
+      color.setHSL(userHue + speed * 0.08, 0.9, brightness);
       colorAttr.array[ix] = color.r; colorAttr.array[ix + 1] = color.g; colorAttr.array[ix + 2] = color.b;
     }
     posAttr.needsUpdate = true; colorAttr.needsUpdate = true;
@@ -393,44 +440,50 @@ Page({
       particleSystem.material.uniforms.particleSize.value = 1.0 + (this.data.customSize / 100) * 10.0;
     }
 
-    // Build constellation lines near finger
+    // Build constellation lines near finger (sparse, like real constellations)
     if (currentMode === 'CONSTELLATION' && lineSystem && isInteracting) {
       let lineIdx = 0;
       const maxLinePairs = 3000;
-      const connectRadius = 3.5;
+      const connectRadius = 3.0;
+      const maxLineLen = 0.8; // Short connections only
       const nearParticles = [];
+      const connCount = new Uint8Array(particleCount); // Track connections per particle
       
       // Collect particles near finger
-      for (let i = 0; i < particleCount && nearParticles.length < 120; i++) {
+      for (let i = 0; i < particleCount && nearParticles.length < 80; i++) {
         const px = posAttr.array[i*3], py = posAttr.array[i*3+1];
         const d = Math.sqrt((px - target.x)**2 + (py - target.y)**2);
         if (d < connectRadius) nearParticles.push(i);
       }
       
-      // Connect nearby pairs
+      // Connect pairs, max 3 lines per particle for sparse pattern
       for (let a = 0; a < nearParticles.length && lineIdx < maxLinePairs; a++) {
+        if (connCount[nearParticles[a]] >= 3) continue;
         for (let b = a + 1; b < nearParticles.length && lineIdx < maxLinePairs; b++) {
+          if (connCount[nearParticles[b]] >= 3) continue;
           const ia = nearParticles[a] * 3, ib = nearParticles[b] * 3;
           const dd = Math.sqrt((posAttr.array[ia]-posAttr.array[ib])**2 + (posAttr.array[ia+1]-posAttr.array[ib+1])**2);
-          if (dd < 1.5) {
+          if (dd < maxLineLen) {
             linePositions[lineIdx*6]   = posAttr.array[ia];
             linePositions[lineIdx*6+1] = posAttr.array[ia+1];
-            linePositions[lineIdx*6+2] = posAttr.array[ia+2];
+            linePositions[lineIdx*6+2] = 0;
             linePositions[lineIdx*6+3] = posAttr.array[ib];
             linePositions[lineIdx*6+4] = posAttr.array[ib+1];
-            linePositions[lineIdx*6+5] = posAttr.array[ib+2];
+            linePositions[lineIdx*6+5] = 0;
             lineIdx++;
+            connCount[nearParticles[a]]++;
+            connCount[nearParticles[b]]++;
           }
         }
       }
       lineSystem.geometry.setDrawRange(0, lineIdx * 2);
       lineSystem.geometry.attributes.position.needsUpdate = true;
       
-      // Update line color from palette
-      const lc = new THREE.Color().setHSL(this.data.customHue / 360, 0.8, 0.6);
+      const lc = new THREE.Color().setHSL(this.data.customHue / 360, 0.7, 0.55);
       lineSystem.material.color = lc;
+      lineSystem.material.opacity = 0.4;
     } else if (currentMode === 'CONSTELLATION' && lineSystem && !isInteracting) {
-      lineSystem.geometry.setDrawRange(0, 0); // Hide lines when not touching
+      lineSystem.geometry.setDrawRange(0, 0);
     }
 
     // Clear the justReleased flag after one frame of explosion
