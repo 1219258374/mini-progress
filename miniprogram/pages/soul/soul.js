@@ -243,7 +243,7 @@ Page({
     if (currentMode === 'LIQUID_WAVE') {
       for (let r = ripples.length - 1; r >= 0; r--) {
         ripples[r].time += 0.04; 
-        if (ripples[r].time > 3.5) ripples.splice(r, 1); // Fade out after ~3.5s
+        if (ripples[r].time > 8.0) ripples.splice(r, 1); // Fade out after ~8s (slow expansion)
       }
     }
 
@@ -307,11 +307,11 @@ Page({
         const ly = posAttr.array[iy];
         let targetZ = 0;
 
-        // Force particles into a uniform full-screen grid
-        const cols = 40;
-        const rows = 50; 
-        const targetX = ((i % cols) / cols - 0.5) * 20.0;
-        const targetY = -(Math.floor(i / cols) / rows - 0.5) * 30.0;
+        // Force particles into a tight, dense full-screen grid
+        const cols = 50;
+        const rows = 40; 
+        const targetX = ((i % cols) / (cols - 1) - 0.5) * 12.0;
+        const targetY = -(Math.floor(i / cols) / (rows - 1) - 0.5) * 16.0;
         
         // Snap strongly to grid so they don't maintain the black-hole circle from Nebula mode
         velocities[ix] += (targetX - lx) * 0.08;
@@ -322,21 +322,21 @@ Page({
            const rip = ripples[r];
            const distToRip = Math.sqrt((lx - rip.x)**2 + (ly - rip.y)**2);
            
-           // Wave expands outward
-           const waveRadius = rip.time * 8.0; 
-           const waveWidth = 2.0; // Thickness of the ripple ring
+           // Wave expands outward SLOWLY (2.0 units/sec instead of 8.0)
+           const waveRadius = rip.time * 2.0; 
+           const waveWidth = 1.5; // Thickness of the ripple ring
            const distFromWave = Math.abs(distToRip - waveRadius);
            
            if (distFromWave < waveWidth) {
-              // Fade intensity over time
-              const intensity = Math.max(0, 1.0 - rip.time / 3.0);
-              // Sine wave bump in the ring
-              targetZ += Math.sin((1.0 - distFromWave/waveWidth) * Math.PI) * 1.8 * intensity;
+              // Fade intensity over time (longer lifetime: 6 seconds)
+              const intensity = Math.max(0, 1.0 - rip.time / 6.0);
+              // Gentle sine wave bump in the ring
+              targetZ += Math.sin((1.0 - distFromWave/waveWidth) * Math.PI) * 1.2 * intensity;
            }
         }
 
-        // Smoothly ease Z back to baseline or up to the wave height
-        posAttr.array[iz] += (targetZ - posAttr.array[iz]) * 0.12;
+        // Smoothly ease Z toward wave height (slower easing for gentleness)
+        posAttr.array[iz] += (targetZ - posAttr.array[iz]) * 0.06;
 
         // Strip away X/Y sway so the particles look like a completely static field from above
         velocities[ix] -= velocities[ix] * 0.1;
