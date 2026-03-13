@@ -230,7 +230,7 @@ Page({
     this.setData({ currentMode: mode });
     currentMode = mode;
 
-    const hues = { NEBULA: 0.6, RIPPLE: 0.55, TIDAL: 0.5, FINGER_VORTEX: 0.8, FIREWORKS: 0.08, LIGHT_PAINT: 0.0, KALEIDOSCOPE: 0.0, LASER: 0.55, RAIN: 0.58 };
+    const hues = { NEBULA: 0.6, RIPPLE: 0.55, TIDAL: 0.5, FINGER_VORTEX: 0.8, FIREWORKS: 0.08, LIGHT_PAINT: 0.0, KALEIDOSCOPE: 0.0, LASER: 0.55, RAIN: 0.58, FLAME: 0.05 };
     if (particleSystem) {
       const posAttr = particleSystem.geometry.attributes.position;
       const colorAttr = particleSystem.geometry.attributes.color;
@@ -284,6 +284,20 @@ Page({
         velocities[i*3]   = 0;
         velocities[i*3+1] = -(0.02 + Math.random() * 0.04); // Downward speed
         if (particleLife) particleLife[i] = -1; // Mark as non-pool
+      }
+      posAttr.needsUpdate = true;
+    }
+
+    // FLAME mode: spawn particles at bottom
+    if (mode === 'FLAME' && particleSystem) {
+      const posAttr = particleSystem.geometry.attributes.position;
+      for (let i = 0; i < particleCount; i++) {
+        posAttr.array[i*3]   = (Math.random() - 0.5) * 3;  // Narrow base
+        posAttr.array[i*3+1] = -6 + Math.random() * 8;     // Start within flame area
+        posAttr.array[i*3+2] = (Math.random() - 0.5) * 1;
+        velocities[i*3]   = 0;
+        velocities[i*3+1] = 0.01 + Math.random() * 0.03;   // Upward
+        if (particleLife) particleLife[i] = -1;
       }
       posAttr.needsUpdate = true;
     }
@@ -510,6 +524,40 @@ Page({
         const rainColor = new THREE.Color().setHSL(this.data.customHue / 360 || 0.58, 0.7, Math.min(0.55, rainBright));
         colorAttr.array[ix] = rainColor.r; colorAttr.array[ix+1] = rainColor.g; colorAttr.array[ix+2] = rainColor.b;
       }
+      else if (currentMode === 'FLAME') {
+        // Fire: particles rise from bottom with turbulence
+        velocities[iy] += 0.002; // Buoyancy (upward)
+        velocities[ix] += (Math.random() - 0.5) * 0.008; // Strong horizontal flicker
+        velocities[ix] *= 0.95; velocities[iy] *= 0.98;
+        
+        // Finger blows flame sideways
+        if (isInteracting && dist < 2.0) {
+          const blow = (2.0 - dist) * 0.02;
+          velocities[ix] -= (dx / (dist + 0.01)) * blow;
+          velocities[iy] -= (dy / (dist + 0.01)) * blow * 0.5;
+          // Scatter sparks upward
+          velocities[iy] += (2.0 - dist) * 0.008;
+        }
+        
+        posAttr.array[ix] += velocities[ix];
+        posAttr.array[iy] += velocities[iy];
+        
+        // Respawn at bottom when above screen or drifted too far
+        if (posAttr.array[iy] > 8 || Math.abs(posAttr.array[ix]) > 6) {
+          posAttr.array[ix] = (Math.random() - 0.5) * 3;
+          posAttr.array[iy] = -6 + Math.random() * 1;
+          posAttr.array[iz] = (Math.random() - 0.5) * 1;
+          velocities[ix] = 0;
+          velocities[iy] = 0.01 + Math.random() * 0.03;
+        }
+        
+        // Color: warm gradient based on height (bottom=red, mid=orange, top=yellow)
+        const flameHeight = (posAttr.array[iy] + 6) / 14; // 0 at bottom, 1 at top
+        const flameHue = 0.0 + flameHeight * 0.12; // red(0) → orange(0.06) → yellow(0.12)
+        const flameBright = 0.3 + (1.0 - flameHeight) * 0.5; // Brighter at bottom
+        const flameColor = new THREE.Color().setHSL(flameHue, 1.0, Math.min(0.7, flameBright));
+        colorAttr.array[ix] = flameColor.r; colorAttr.array[ix+1] = flameColor.g; colorAttr.array[ix+2] = flameColor.b;
+      }
 
       velocities[ix] *= 0.94; velocities[iy] *= 0.94;
       
@@ -523,7 +571,7 @@ Page({
       
       posAttr.array[ix] += velocities[ix]; posAttr.array[iy] += velocities[iy];
 
-      if (currentMode !== 'RIPPLE' && currentMode !== 'FINGER_VORTEX' && currentMode !== 'FIREWORKS' && currentMode !== 'LIGHT_PAINT' && currentMode !== 'KALEIDOSCOPE' && currentMode !== 'LASER' && currentMode !== 'RAIN') {
+      if (currentMode !== 'RIPPLE' && currentMode !== 'FINGER_VORTEX' && currentMode !== 'FIREWORKS' && currentMode !== 'LIGHT_PAINT' && currentMode !== 'KALEIDOSCOPE' && currentMode !== 'LASER' && currentMode !== 'RAIN' && currentMode !== 'FLAME') {
         posAttr.array[iz] += Math.sin(time + phase[i]) * 0.002;
       }
 
