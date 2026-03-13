@@ -155,8 +155,8 @@ Page({
 
         vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
         
-        // Size attenuation
-        gl_PointSize = (isMeteor > 0.5 ? 4.0 : 3.0) * (30.0 / -mvPosition.z);
+        // Size attenuation: Meteors are much larger to allow rendering a long tail
+        gl_PointSize = (isMeteor > 0.5 ? 45.0 : 4.0) * (30.0 / -mvPosition.z);
         gl_Position = projectionMatrix * mvPosition;
       }
     `;
@@ -168,15 +168,15 @@ Page({
       void main() {
         vec4 texColor = texture2D(pointTexture, gl_PointCoord);
         
-        // If it's a meteor, we can manually shape the texture coordinates in the fragment shader to look like a streak
+        // If it's a meteor, we manually shape the texture coordinates in the fragment shader to look like a long streak
         if (isMeteor > 0.5) {
-            // Elongate the dot into a streak based on Y axis (falling down)
+            // Elongate the dot into a long streak based on Y axis (falling down)
             vec2 uv = gl_PointCoord;
-            uv.x = (uv.x - 0.5) * 5.0 + 0.5; // Squash horizontally
+            uv.x = (uv.x - 0.5) * 15.0 + 0.5; // squash horizontally severely to make a thin line
             texColor = texture2D(pointTexture, uv);
             
-            // Fade the tail (top part of the point)
-            texColor.a *= smoothstep(0.0, 0.8, 1.0 - gl_PointCoord.y);
+            // Fade the tail (top part of the point) to simulate a comet/meteor streak
+            texColor.a *= smoothstep(0.0, 0.5, 1.0 - gl_PointCoord.y);
         }
         
         gl_FragColor = vec4(vColor, texColor.a * 0.8);
@@ -273,33 +273,49 @@ Page({
         velocities[iy] += dy * pull;
       }
       else if (currentMode === 'METEOR_SHOWER') {
-        // Fall speed is tied EXACTLY to how much the phone is tilted toward the user.
-        // gravity.y is negative when tilted toward the user.
-        // If the phone is flat (gravity.y ≈ 0), they stop falling.
-        const fallSpeed = Math.max(0, -gravity.y * 1.5); 
-        
-        velocities[ix] += gravity.x * 0.1; // Slight wind drift based on left/right tilt
-        velocities[iy] -= fallSpeed;       // Fall only when tilted
-        
-        // Touch interaction: swipe to scatter meteors
-        if (isInteracting && dist < 2.5) {
-           velocities[ix] -= (dx / dist) * 0.2;
-           velocities[iy] -= (dy / dist) * 0.2;
-        }
+        // Only 1 out of 8 particles become meteors to completely fix the "密密麻麻" (dense cluster) issue
+        if (i % 8 !== 0) {
+           velocities[iy] += (15.0 - posAttr.array[iy]) * 0.1; // Hide them way above screen
+           velocities[ix] *= 0.8;
+        } else {
+           // Fall speed is tied EXACTLY to how much the phone is tilted toward the user.
+           // gravity.y is negative when tilted toward the user. If flat, gravity.y ≈ 0.
+           const tilt = Math.max(0, -gravity.y); 
+           const fallSpeed = tilt * 0.3; // Total stop if flat, very fast if tilted heavily
+           
+           velocities[ix] += gravity.x * 0.05; // Slight wind drift based on left/right tilt
+           velocities[iy] -= fallSpeed;       // Fall only when tilted
+           
+           // Touch interaction: swipe to scatter meteors
+           if (isInteracting && dist < 2.5) {
+              velocities[ix] -= (dx / dist) * 0.2;
+              velocities[iy] -= (dy / dist) * 0.2;
+           }
 
-        // Loop back to top to create endless rain
-        if (posAttr.array[iy] < -12) {
-           posAttr.array[iy] = 12 + Math.random() * 5;
-           posAttr.array[ix] = (Math.random() - 0.5) * 25;
-           // Reset velocity so they don't violently snap when looping
-           velocities[iy] = 0;
-           velocities[ix] = 0;
+           // Loop back to top to create endless sparse rain
+           if (posAttr.array[iy] < -12) {
+              // Huge vertical variance so they spawn irregularly and not in chunks
+              posAttr.array[iy] = 12 + Math.random() * 30;
+              posAttr.array[ix] = (Math.random() - 0.5) * 25;
+              velocities[iy] = 0;
+              velocities[ix] = 0;
+           }
         }
       }
       else if (currentMode === 'LIQUID_WAVE') {
         const lx = posAttr.array[ix];
         const ly = posAttr.array[iy];
         let targetZ = 0;
+
+        // Force particles into a uniform full-screen grid
+        const cols = 40;
+        const rows = 50; 
+        const targetX = ((i % cols) / cols - 0.5) * 20.0;
+        const targetY = -(Math.floor(i / cols) / rows - 0.5) * 30.0;
+        
+        // Snap strongly to grid so they don't maintain the black-hole circle from Nebula mode
+        velocities[ix] += (targetX - lx) * 0.08;
+        velocities[iy] += (targetY - ly) * 0.08;
 
         // Calculate superposition of all active propagating ripples
         for (let r = 0; r < ripples.length; r++) {
