@@ -224,6 +224,25 @@ Page({
       if (currentMode === 'GRAVITY_FALL' || currentMode === 'MAGNETIC_STORM') {
         velocities[ix] += gravity.x * 2.0;
         velocities[iy] -= gravity.y * 2.0; // Invert Y because screen space Y is opposite to physical accel Y
+        
+        // Invisible elastic glass container to prevent flying off screen indefinitely
+        const ox = posAttr.array[ix];
+        const oy = posAttr.array[iy];
+        const distCenter = Math.sqrt(ox*ox + oy*oy) || 0.001; 
+        const maxRadius = 4.5;
+        
+        if (distCenter > maxRadius) {
+          // Strong spring force pulling them back inside the radius
+          const springForce = (distCenter - maxRadius) * 0.08;
+          velocities[ix] -= (ox / distCenter) * springForce;
+          velocities[iy] -= (oy / distCenter) * springForce;
+          
+          // Friction and volume scatter against the edge so they pool instead of collapsing into a single dot
+          velocities[ix] *= 0.8;
+          velocities[iy] *= 0.8;
+          velocities[ix] += (Math.random() - 0.5) * 0.02;
+          velocities[iy] += (Math.random() - 0.5) * 0.02;
+        }
       }
 
       velocities[ix] *= 0.94; velocities[iy] *= 0.94;
